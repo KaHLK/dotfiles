@@ -4,12 +4,17 @@ syntax enable         " syntax processing
 set number            " show line numbers
 set showcmd           " show the last command
 set cursorline        " higlight the current line
+
+filetype on           " enable file type detection 
 filetype indent on    " load filetype-specific indent files
+
 set wildmenu          " visual autocomplete for command menu
 set lazyredraw        " redraw only when needed
 set showmatch         " Higlight matching [{()}]
 
 set tabstop=2         " number of vusial spaces per tab
 set softtabstop=2     " number of spaces in tab when editing
+set shiftwidth=0      " Number of spaces for (auto)indent
 set expandtab         " tabs are spaces
 
+"autocmd FileType make set noexpandtab shiftwidth=8 softtabstop=0 tabstop=4
