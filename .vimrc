@@ -1,3 +1,5 @@
+execute pathogen#infect()
+
 colorscheme molokai   " Colorscheme
 
 syntax enable         " syntax processing
