@@ -8,6 +8,7 @@ Plugin 'VundleVim/Vundle.vim'
 
 Plugin 'flazz/vim-colorschemes'
 Plugin 'wakatime/vim-wakatime'
+Plugin 'sheerun/vim-polyglot'
 
 call vundle#end()
 

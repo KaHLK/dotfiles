@@ -1,4 +1,13 @@
 #/bin/bash
+if [ -z "$(ls -A vundle)" ]
+then
+  set -x #Print commands
+  git submodule init
+  git submodule update
+fi
+
+set -x #Print commands
+
 cd ./
 mkdir -p ~/.vim/indent ~/.vim/bundle/ ~/.config/fish/functions
 ln -svf ~/dotfiles/.vimrc ~/.vimrc
