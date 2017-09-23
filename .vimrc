@@ -1,4 +1,15 @@
-execute pathogen#infect()
+set nocompatible
+filetype off
+
+set rtp+=~/.vim/bundle/Vundle.vim
+call vundle#begin()
+
+Plugin 'VundleVim/Vundle.vim'
+
+Plugin 'flazz/vim-colorschemes'
+Plugin 'wakatime/vim-wakatime'
+
+call vundle#end()
 
 colorscheme molokai   " Colorscheme
 
@@ -18,5 +29,3 @@ set tabstop=2         " number of vusial spaces per tab
 set softtabstop=2     " number of spaces in tab when editing
 set shiftwidth=0      " Number of spaces for (auto)indent
 set expandtab         " tabs are spaces
-
-"autocmd FileType make set noexpandtab shiftwidth=8 softtabstop=0 tabstop=4
