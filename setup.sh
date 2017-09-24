@@ -13,7 +13,7 @@ mkdir -p ~/.vim/indent ~/.vim/bundle/ ~/.config/fish/functions
 ln -svf ~/dotfiles/.vimrc ~/.vimrc
 
 cd ~/.vim/bundle/
-ln -svf ~/dotfiles/vundle Vundle.vim
+ln -svf ~/dotfiles/Vundle.vim ./
 
 cd ~/.vim/indent
 ln -svf ~/dotfiles/.vim/indent/* ./
