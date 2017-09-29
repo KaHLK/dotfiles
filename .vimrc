@@ -10,6 +10,16 @@ Plugin 'flazz/vim-colorschemes'
 Plugin 'wakatime/vim-wakatime'
 Plugin 'sheerun/vim-polyglot'
 
+Plugin 'townk/vim-autoclose'
+
+Plugin 'itchyny/lightline.vim'
+
+Plugin 'majutsushi/tagbar'
+Plugin 'scrooloose/nerdtree'
+Plugin 'jistr/vim-nerdtree-tabs'
+
+Plugin 'ervandew/supertab'
+
 call vundle#end()
 
 colorscheme molokai   " Colorscheme
@@ -30,3 +40,18 @@ set tabstop=2         " number of vusial spaces per tab
 set softtabstop=2     " number of spaces in tab when editing
 set shiftwidth=0      " Number of spaces for (auto)indent
 set expandtab         " tabs are spaces
+
+" Lightline
+set laststatus=2
+let g:lightline = {
+  \ 'colorscheme': 'seoul256'
+  \ }
+
+" Tagbar
+nmap <F8> :TagbarToggle<CR>
+
+" Nerdtree
+nmap <C-N> :NERDTreeTabsToggle<CR>
+
+" Supertab
+let g:SuperTabDefaultCompletionType = "<c-n>"
