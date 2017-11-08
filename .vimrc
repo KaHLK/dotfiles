@@ -18,14 +18,17 @@ Plugin 'majutsushi/tagbar'
 Plugin 'scrooloose/nerdtree'
 Plugin 'jistr/vim-nerdtree-tabs'
 
-Plugin 'ervandew/supertab'
-
 call vundle#end()
 
 colorscheme molokai   " Colorscheme
 
 syntax enable         " syntax processing
-set number            " show line numbers
+set number relativenumber
+augroup numbertoggle
+  autocmd!
+  autocmd BufEnter,FocusGained,InsertLeave * set relativenumber
+  autocmd BufLeave,FocusLost,InsertEnter   * set norelativenumber
+augroup END
 set showcmd           " show the last command
 set cursorline        " higlight the current line
 
