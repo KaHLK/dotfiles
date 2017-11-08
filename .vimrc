@@ -23,8 +23,8 @@ call vundle#end()
 colorscheme molokai   " Colorscheme
 
 syntax enable         " syntax processing
-set number relativenumber
-augroup numbertoggle
+set number relativenumber   " Set relative numbers
+augroup numbertoggle        " change between to not relative numbers when in insert mode and back when not
   autocmd!
   autocmd BufEnter,FocusGained,InsertLeave * set relativenumber
   autocmd BufLeave,FocusLost,InsertEnter   * set norelativenumber
@@ -55,6 +55,3 @@ nmap <F8> :TagbarToggle<CR>
 
 " Nerdtree
 nmap <C-N> :NERDTreeTabsToggle<CR>
-
-" Supertab
-let g:SuperTabDefaultCompletionType = "<c-n>"
