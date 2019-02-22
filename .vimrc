@@ -44,6 +44,9 @@ set softtabstop=2     " number of spaces in tab when editing
 set shiftwidth=0      " Number of spaces for (auto)indent
 set expandtab         " tabs are spaces
 
+set backupdir=~/.vim/swapfiles
+set dir=~/.vim/swapfiles
+
 " Lightline
 set laststatus=2
 let g:lightline = {

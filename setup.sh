@@ -1,5 +1,5 @@
 #/bin/bash
-if [ -z "$(ls -A vundle)" ]
+if [ -z "$(ls -A Vundle.vim)" ]
 then
   set -x #Print commands
   git submodule init
