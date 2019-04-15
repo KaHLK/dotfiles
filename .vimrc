@@ -14,10 +14,6 @@ Plugin 'townk/vim-autoclose'
 
 Plugin 'itchyny/lightline.vim'
 
-Plugin 'majutsushi/tagbar'
-Plugin 'scrooloose/nerdtree'
-Plugin 'jistr/vim-nerdtree-tabs'
-
 call vundle#end()
 
 colorscheme molokai   " Colorscheme
@@ -53,8 +49,3 @@ let g:lightline = {
   \ 'colorscheme': 'seoul256'
   \ }
 
-" Tagbar
-nmap <F8> :TagbarToggle<CR>
-
-" Nerdtree
-nmap <C-N> :NERDTreeTabsToggle<CR>
