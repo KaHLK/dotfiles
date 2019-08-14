@@ -1,8 +1,6 @@
 set -g -x fish_greeting ""
 # cd ~
 
-thefuck --alias | source
-
 # Check if an existing ssh-agent exists and re-use it
 set GOT_AGENT 0
 for FILE in /tmp/ssh-*/agent.*;
