@@ -1,5 +1,10 @@
 - clean: ["~"]
 
+- shell:
+      - command: ./shell.sh
+        stdout: true
+      - [git submodule update --init --recursive, Installing submodules]
+
 - link:
       ~/.bash_profile: bash_profile
       ~/.bashrc: bashrc
