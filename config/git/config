@@ -1,0 +1,31 @@
+[user]
+name = Kristoffer Kabat
+email = yeah-kris@hotmail.com
+
+[ui "color"]
+ui = always
+
+[color]
+ui = true
+
+[alias]
+c = commit
+s = status
+lg = log --oneline --graph
+l = log --oneline
+last = log -1 HEAD
+
+[pull]
+ff = only
+
+[push]
+default = simple
+
+[diff]
+algorithm = patience
+compactionHeuristic = true
+
+[github]
+user = kahlk
+[init]
+	defaultBranch = main
