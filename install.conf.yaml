@@ -1,16 +1,16 @@
 - clean: ["~"]
 
 - shell:
-      - command: ./shell.sh
-        stdout: true
-      - [git submodule update --init --recursive, Installing submodules]
+    - command: ./shell.sh
+      stdout: true
+    - [git submodule update --init --recursive, Installing submodules]
 
 - link:
-      ~/.bash_profile: bash_profile
-      ~/.bashrc: bashrc
-      ~/.bash_logout: bash_logout
-      ~/.Xresources: Xresources
-      ~/.config/:
-          glob: true
-          path: config/*
-          create: true
+    ~/.config/:
+      glob: true
+      path: config/*
+      create: true
+    ~/:
+      glob: true
+      path: root/*
+      prefix: "."
