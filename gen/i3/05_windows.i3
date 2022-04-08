@@ -1,4 +1,5 @@
 smart_borders on
+smart_gaps on
 gaps inner 5
 gaps outer 5
 
