@@ -1,7 +1,7 @@
 # Colors
-set $fg  #ffffff
+set_from_resource $fg i3wm.foreground  #ffffff
 set $bg2 #222222
-set $bg  #964058
+set_from_resource $bg i3wm.background  #964058
 #b84b6a
 
 # class                 border  backgr. text indicator child_border
