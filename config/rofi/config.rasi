@@ -1,5 +1,3 @@
-
-
 configuration {
     modi: "drun,window,ssh,combi";
     font: "Fira Code 12";

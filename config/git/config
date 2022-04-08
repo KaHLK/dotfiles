@@ -29,3 +29,6 @@ compactionHeuristic = true
 user = kahlk
 [init]
 	defaultBranch = main
+
+[core]
+editor = vim
