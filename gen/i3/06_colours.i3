@@ -12,3 +12,5 @@ client.urgent           $bg      $bg    $fg  $bg       $bg
 client.placeholder      $bg      $bg    $fg  $bg       $bg
 
 client.background       $bg
+
+exec_always colour.sh

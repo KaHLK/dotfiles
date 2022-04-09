@@ -1,4 +1,0 @@
-#!/bin/sh
-
-wal -i "$HOME/pic/bg.jpg" &
-nitrogen --restore &
