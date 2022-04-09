@@ -1,3 +1,20 @@
+# Abbreviations
+if command -v exa >/dev/null
+    abbr -a l exa
+    abbr -a ls exa
+    abbr -a ll 'exa -l'
+    abbr -a la 'exa -la'
+else
+    abbr -a l ls
+    abbr -a ll 'ls -l'
+    abbr -a la 'ls -la'
+end
+
+abbr -a c cargo
+abbr -a e code
+abbr -a g git
+abbr -a yr "cal -y"
+
 if status is-interactive
     # Check if an existing ssh-agent exists and re-use it
     set GOT_AGENT 0
@@ -68,4 +85,13 @@ function fish_greeting
 	)
     echo
     set_color normal
+end
+
+function d
+    while test $PWD != /
+        if test -d .git
+            break
+        end
+        cd ..
+    end
 end
