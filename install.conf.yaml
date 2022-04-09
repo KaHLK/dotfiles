@@ -4,6 +4,9 @@
     - command: ./shell.sh
       stdout: true
     - [git submodule update --init --recursive, Installing submodules]
+    - [curl -sL https://git.io/fisher | source, Installing Fisher]
+    - [fisher update, Installing fisher plugins]
+    - [nvm install latest, Installing nodejs]
 
 - link:
     ~/.config/:
