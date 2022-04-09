@@ -1,4 +1,1 @@
-bar {
-    status_command i3status
-}
-
+exec_always --no-startup-id $HOME/.config/polybar/launch.sh
