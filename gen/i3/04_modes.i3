@@ -17,7 +17,7 @@ mode "resize" {
         bindsym $mod+r mode "default"
 }
 
-bindsym $mod+0 mode "$mode_system"
+bindsym $mod+Escape mode "$mode_system"
 set $mode_system (l)ock, (e)xit, switch_(u)ser, (s)uspend, (h)ibernate, (r)eboot, (Shift+s)hutdown
 mode "$mode_system" {
         bindsym l exec --no-startup-id i3exit lock, mode "default"
