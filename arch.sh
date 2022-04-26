@@ -31,6 +31,7 @@ install exa
 install fd
 install dust
 install tokei
+install scrcpy
 
 install yarn
 install rustup
