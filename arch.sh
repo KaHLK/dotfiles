@@ -31,9 +31,6 @@ install exa
 install fd
 install dust
 install tokei
-if ! [ -x "$(command -v wal)" ]; then
-    yay -S python-pywal
-fi
 
 install yarn
 install rustup

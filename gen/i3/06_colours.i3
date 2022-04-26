@@ -13,4 +13,4 @@ client.placeholder      $bg      $bg    $fg  $bg       $bg
 
 client.background       $bg
 
-exec_always colour.sh
+exec_always nitrogen --restore
