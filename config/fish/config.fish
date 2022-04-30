@@ -26,8 +26,9 @@ if status is-interactive
         set -x SSH_AUTH_SOCK $SOCK_FILE
         set -x SSH_AGENT_PID $PID
 
-        ssh-add -l >/dev/null
-        if [ $status != 2 ]
+        # Check if an ssh-agent have keys and re-use it if it does
+        ssh-add -l | string match --regex The >/dev/null
+        if [ $status != 0 ]
             set GOT_AGENT 1
             echo "Found existing agent pid $PID"
             break
