@@ -32,6 +32,7 @@ install fd
 install dust
 install tokei
 install scrcpy
+install lf
 
 install yarn
 install rustup
