@@ -23,7 +23,7 @@ exec --no-startup-id dex --autostart --environment i3
 # screen before suspend. Use loginctl lock-session to lock your screen.
 exec --no-startup-id xss-lock --transfer-sleep-lock -- i3lock --nofork
 
-exec firefox-developer-edition
+exec sleep 5 && firefox-developer-edition
 exec alacritty -e yay
 
 set $mod Mod4
