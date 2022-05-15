@@ -17,10 +17,11 @@ abbr -a yr "cal -y"
 
 if status is-interactive
     # Check if an existing ssh-agent exists and re-use it
+    set AGENTS /tmp/ssh-*/agent.*
     set GOT_AGENT 0
-    for FILE in /tmp/ssh-*/agent.*
+    for FILE in $AGENTS
         set SOCK_PID (string split "." $FILE)[2]
-        set PID (ps -fu$LOGNAME|awk '/ssh-agent/ && ( $2=='$SOCK_PID' || $3=='$SOCK_PID' || $2=='$SOCK_PID' +1 ) {print $2}')
+        set PID (ps -fu $LOGNAME | awk '/ssh-agent/ && ( $2=='$SOCK_PID' || $3=='$SOCK_PID' || $2=='$SOCK_PID' +1 ) {print $2}')
         set SOCK_FILE $FILE
 
         set -x SSH_AUTH_SOCK $SOCK_FILE
@@ -36,7 +37,9 @@ if status is-interactive
     end
 
     if [ $GOT_AGENT = 0 ]
+        echo "Didn't find existing agent with keys. Creating a new one and adding key"
         eval (ssh-agent -c)
+        ssh-add ~/.ssh/sakie
     end
 end
 
