@@ -34,8 +34,8 @@ install tokei
 install scrcpy
 install lf
 
-install yarn
 install rustup
+install fnm
 
 if ! [ -x "$(command -v code)" ]; then
     echo ""

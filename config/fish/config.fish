@@ -99,3 +99,5 @@ function d
         cd ..
     end
 end
+
+set -g PATH ~/.cargo/bin:$PATH
