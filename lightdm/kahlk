@@ -1,0 +1,4 @@
+[User]
+XSession=i3-with-shmlog
+Icon=/var/lib/AccountsService/icons/kahlk.png
+SystemAccount=false
