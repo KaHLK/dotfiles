@@ -3,6 +3,7 @@
 - shell:
     - command: ./shell.sh
       stdout: true
+    - [sudo cp scripts/i3exit /usr/bin/i3exit]
     - [git submodule update --init --recursive, Installing submodules]
     - [curl -sL https://git.io/fisher | source, Installing Fisher]
     - [fisher update, Installing fisher plugins]
