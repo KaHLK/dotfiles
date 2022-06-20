@@ -15,7 +15,7 @@ install() {
     if ! [ -x "$(command -v $1)" ]; then
         echo ""
         echo "Installing '$1'"
-        yay -S $1
+        yay -S $1 --noconfirm
     fi
 }
 
