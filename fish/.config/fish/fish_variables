@@ -1,0 +1,13 @@
+# This file contains fish universal variable definitions.
+# VERSION: 3.0
+SETUVAR __fish_initialized:4300
+SETUVAR _fish_abbr_c:cargo
+SETUVAR _fish_abbr_e:code
+SETUVAR _fish_abbr_g:git
+SETUVAR _fish_abbr_l:ls
+SETUVAR _fish_abbr_la:ls\x20\x2dla
+SETUVAR _fish_abbr_ll:ls\x20\x2dl
+SETUVAR _fish_abbr_ls:eza
+SETUVAR _fish_abbr_yr:cal\x20\x2dy
+SETUVAR _fisher_upgraded_to_4_4:\x1d
+SETUVAR fish_user_paths:/Users/kahlk/\x2ebun/bin\x1e/opt/local/sbin\x1e/opt/local/bin\x1e/Users/kahlk/\x2ecargo/bin\x1e/Applications/Ghostty\x2eapp/Contents/MacOS

@@ -1,0 +1,37 @@
+[user]
+    name = Kristoffer Kabat
+    email = yeah-kris@hotmail.com
+
+[github]
+    user = kahlk
+
+[alias]
+    c = commit
+    s = status
+    lg = log --oneline --graph
+    l = log --oneline
+
+[pull]
+    ff = only
+
+[push]
+    default = simple
+
+[diff]
+    algorithm = histogram
+    colorMoved = plain
+    mnemonicPrefix = true
+
+[tag]
+    sort = -version:refname
+
+[init]
+    defaultBranch = main
+
+[core]
+    editor = nvim
+    hooksPath = $GIT_DIR/hooks
+
+[rerere]
+	enabled = true
+	autoupdate = true
