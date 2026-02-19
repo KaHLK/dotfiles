@@ -1,11 +1,26 @@
 function wtc --description 'Create a git worktree and open it in a tmux window with opencode'
-    if test (count $argv) -ne 2
-        echo "Usage: worktree <dir> <branch>"
+    if test (count $argv) -lt 1 -o (count $argv) -gt 2
+        echo "Usage: wtc <dir> [branch]"
         return 1
     end
 
     set -l dir $argv[1]
-    set -l branch $argv[2]
+    set -l branch
+
+    if test (count $argv) -eq 2
+        set branch $argv[2]
+    else
+        set -l checked_out (git worktree list --porcelain | string match -r 'refs/heads/.+' | string replace 'refs/heads/' '')
+        set -l all_branches (git branch --format '%(refname:short)')
+        if test (count $checked_out) -gt 0
+            set all_branches (printf '%s\n' $all_branches | string match -rv (string join '|' $checked_out))
+        end
+        set branch (printf '%s\n' $all_branches | fzf --prompt="Select branch: " --height=40% --border)
+        if test -z "$branch"
+            echo "No branch selected. Aborting."
+            return 1
+        end
+    end
 
     if not git show-ref --verify --quiet refs/heads/$branch
         echo "Branch '$branch' does not exist."
