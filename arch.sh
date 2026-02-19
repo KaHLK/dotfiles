@@ -2,11 +2,11 @@
 
 if ! [ -x "$(command -v yay)" ]; then
     sudo pacman -S --needed git base-devel
-    git clone https://aur.archlinux.org/yay.git
-    cd yay
+    git clone https://aur.archlinux.org/yay.git /tmp/yay
+    cd /tmp/yay
     makepkg -si
-    cd ..
-    rm -rf yay
+    cd -
+    rm -rf /tmp/yay
 fi
 
 install() {
