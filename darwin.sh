@@ -27,6 +27,7 @@ if ! [ -d "/Applications/Firefox Developer Edition.app" ]; then
     echo "Firefox Developer Edition must be installed manually: https://www.mozilla.org/firefox/developer/"
 fi
 
+install stow
 install fish
 install bat
 install eza

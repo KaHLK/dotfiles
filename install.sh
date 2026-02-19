@@ -37,3 +37,5 @@ case "$OS" in
         exit 1
         ;;
 esac
+
+bash "$SCRIPT_DIR/init.sh"

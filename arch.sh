@@ -20,6 +20,7 @@ install() {
 
 yay
 
+install stow
 install fish
 install ghostty
 install firefox-developer-edition
