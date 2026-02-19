@@ -8,6 +8,6 @@ echo "Unstowing dotfiles from $DOTFILES_DIR..."
 # so we must cd here regardless of where the script was called from
 cd "$DOTFILES_DIR"
 
-stow -D bash fish git scripts
+stow --dotfiles -D bash fish git scripts
 
 echo "Done."
