@@ -19,6 +19,9 @@ install() {
     fi
 }
 
+sudo port selfupdate
+sudo port upgrade outdated
+
 if ! [ -x "$(command -v ghostty)" ]; then
     echo ""
     echo "Ghostty must be installed manually: https://ghostty.org/download"
