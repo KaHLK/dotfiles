@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 xcode-select --install 2>/dev/null || true
 
 # MacPorts must be installed manually from https://www.macports.org/install.php

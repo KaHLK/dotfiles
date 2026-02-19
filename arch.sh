@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 
+set -e
+
 if ! [ -x "$(command -v yay)" ]; then
     sudo pacman -S --needed git base-devel
     git clone https://aur.archlinux.org/yay.git /tmp/yay
     cd /tmp/yay
-    makepkg -si
+    makepkg -si --noconfirm
     cd -
     rm -rf /tmp/yay
 fi
