@@ -13,6 +13,8 @@ echo "Stowing dotfiles from $DOTFILES_DIR..."
 # so we must cd here regardless of where the script was called from
 cd "$DOTFILES_DIR"
 
-stow --dotfiles bash fish git opencode scripts tmux
+# Read package list from file (one package per line)
+PACKAGES=$(< packages)
+stow --dotfiles $PACKAGES
 
 echo "Done."

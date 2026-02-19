@@ -8,6 +8,8 @@ echo "Unstowing dotfiles from $DOTFILES_DIR..."
 # so we must cd here regardless of where the script was called from
 cd "$DOTFILES_DIR"
 
-stow --dotfiles -D bash fish git scripts
+# Read package list from file (one package per line)
+PACKAGES=$(< packages)
+stow --dotfiles -D $PACKAGES
 
 echo "Done."
