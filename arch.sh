@@ -11,14 +11,9 @@ if ! [ -x "$(command -v yay)" ]; then
     rm -rf /tmp/yay
 fi
 
-install() {
-    local cmd=${2:-$1}
-    if ! [ -x "$(command -v $cmd)" ]; then
-        echo ""
-        echo "Installing '$1'"
-        yay -S $1 --noconfirm
-    fi
-}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_CMD="yay -S --noconfirm"
+source "$SCRIPT_DIR/lib.sh"
 
 yay
 

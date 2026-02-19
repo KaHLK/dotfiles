@@ -10,14 +10,9 @@ if ! [ -x "$(command -v port)" ]; then
     exit 1
 fi
 
-install() {
-    local cmd=${2:-$1}
-    if ! [ -x "$(command -v $cmd)" ]; then
-        echo ""
-        echo "Installing '$1'"
-        sudo port install $1
-    fi
-}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_CMD="sudo port install"
+source "$SCRIPT_DIR/lib.sh"
 
 sudo port selfupdate
 sudo port upgrade outdated
