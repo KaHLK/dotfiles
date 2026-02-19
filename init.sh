@@ -13,6 +13,6 @@ echo "Stowing dotfiles from $DOTFILES_DIR..."
 # so we must cd here regardless of where the script was called from
 cd "$DOTFILES_DIR"
 
-stow --dotfiles bash fish git scripts tmux
+stow --dotfiles bash fish git opencode scripts tmux
 
 echo "Done."
