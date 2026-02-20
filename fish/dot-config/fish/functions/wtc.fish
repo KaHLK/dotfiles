@@ -13,7 +13,7 @@ function wtc --description 'Create a git worktree and open it in a tmux window w
         set -l checked_out (git worktree list --porcelain | string match -r 'refs/heads/.+' | string replace 'refs/heads/' '')
         set -l all_branches (git branch --format '%(refname:short)')
         if test (count $checked_out) -gt 0
-            set all_branches (printf '%s\n' $all_branches | string match -rv (string join '|' $checked_out))
+            set all_branches (printf '%s\n' $all_branches | string match -rv (printf '^%s$\n' $checked_out | string join '|'))
         end
         set branch (printf '%s\n' $all_branches | fzf --prompt="Select branch: " --height=40% --border)
         if test -z "$branch"
