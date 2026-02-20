@@ -17,31 +17,40 @@ abbr -a yr "cal -y"
 
 if status is-interactive
     # Check if an existing ssh-agent exists and re-use it
+    set GOT_AGENT 0
+
     switch (uname)
         case Darwin
-            set AGENTS /var/folders/**/ssh-*/*
+            # Modern macOS (Sequoia+) places agent sockets in ~/.ssh/agent/
+            for SOCK_FILE in $HOME/.ssh/agent/s.*
+                test -S "$SOCK_FILE"; or continue
+                set -x SSH_AUTH_SOCK $SOCK_FILE
+                set -e SSH_AGENT_PID
+                ssh-add -l >/dev/null 2>&1
+                if test $status -eq 0
+                    set GOT_AGENT 1
+                    echo "Found existing agent via $SOCK_FILE"
+                    break
+                end
+            end
+
         case "*"
-        set AGENTS /tmp/ssh-*/agent.*
-    end
-    set GOT_AGENT 0
-    for FILE in $AGENTS
-        set SOCK_PID (string split "." $FILE)[2]
-        set PID (ps -fu $LOGNAME | awk '/ssh-agent/ && ( $2=='$SOCK_PID' || $3=='$SOCK_PID' || $2=='$SOCK_PID' +1 ) {print $2}')
-        set SOCK_FILE $FILE
-
-        set -x SSH_AUTH_SOCK $SOCK_FILE
-        set -x SSH_AGENT_PID $PID
-
-        # Check if an ssh-agent have keys and re-use it if it does
-        ssh-add -l | string match --regex The >/dev/null
-        if [ $status != 0 ]
-            set GOT_AGENT 1
-            echo "Found existing agent pid $PID"
-            break
-        end
+            for SOCK_FILE in /tmp/ssh-*/agent.*
+                test -S "$SOCK_FILE"; or continue
+                set SOCK_PID (string split "." $SOCK_FILE)[2]
+                set PID (ps -fu $LOGNAME | awk '/ssh-agent/ && ( $2=='$SOCK_PID' || $3=='$SOCK_PID' || $2=='$SOCK_PID' +1 ) {print $2}')
+                set -x SSH_AUTH_SOCK $SOCK_FILE
+                set -x SSH_AGENT_PID $PID
+                ssh-add -l >/dev/null 2>&1
+                if test $status -eq 0
+                    set GOT_AGENT 1
+                    echo "Found existing agent pid $PID"
+                    break
+                end
+            end
     end
 
-    if [ $GOT_AGENT = 0 ]
+    if test $GOT_AGENT = 0
         echo "Didn't find existing agent with keys. Creating a new one and adding key"
         eval (ssh-agent -c)
         ssh-add ~/.ssh/sakie
