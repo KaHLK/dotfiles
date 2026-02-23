@@ -60,7 +60,6 @@ end
 set __fish_git_prompt_showuntrackedfiles yes
 set __fish_git_prompt_showdirtystate yes
 set __fish_git_prompt_showstashstate ''
-# set __fish_git_prompt_showupstream none
 set -g fish_prompt_pwd_dir_length 3
 set __fish_git_prompt_show_informative_status 1
 set __fish_git_prompt_color_branch brmagenta
@@ -76,16 +75,6 @@ switch (uname)
 end
 
 function fish_prompt
-    # echo -n " "
-
-    # set_color ffb3ba
-    # echo -n (prompt_pwd)
-
-    # printf '%s ' (__fish_git_prompt)
-
-    # set_color normal
-    # echo -n "> "
-
     set -l exitcode "$status"
 
     # print the "show cursor" escape code in case a program exited while the cursor was hidden
@@ -93,8 +82,6 @@ function fish_prompt
 
     printf (set_color reset)(set_color grey)
     printf "\n\033[1F"
-
-    # printf (set_color ffb3ba)(whoami)(set_color normal)@(set_color bae1ff)"$host "(set_color normal)
 
     # if is a git repository
     if git rev-parse --is-inside-work-tree >/dev/null 2>/dev/null
@@ -110,8 +97,6 @@ function fish_prompt
             set mainbranch main
         end
         if test "$branchname" != "$mainbranch"
-            # set -l branchname (string split / $branchname)[-1]
-            # printf (set_color magenta)\($branchname\)
             printf (set_color magenta)(string trim (fish_git_prompt))
         end
 
@@ -160,7 +145,6 @@ function fish_greeting
 end
 
 set --export EDITOR nvim
-set --export GITHUB_ACCESS_TOKEN "***REMOVED***"
 set --export BUN_INSTALL "$HOME/.bun"
 
 fish_add_path /usr/bin/rsync
@@ -169,14 +153,8 @@ fish_add_path /opt/local/bin
 fish_add_path /opt/local/sbin
 fish_add_path $BUN_INSTALL/bin
 
-# set -g PATH /usr/bin/rsync:~/.cargo/bin:/usr/local/bin/code:/opt/local/bin:/opt/local/sbin:$BUN_INSTALL/bin:$PATH
 zoxide init fish | source
 fnm env --use-on-cd | source
-
-set --export JAVA_HOME "/Applications/Android Studio.app/Contents/jbr/Contents/Home"
-
-# bun
-
 
 # The next line updates PATH for the Google Cloud SDK.
 if [ -f '/Users/kahlk/.google/path.fish.inc' ]; . '/Users/kahlk/.google/path.fish.inc'; end
