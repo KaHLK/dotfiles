@@ -12,8 +12,10 @@ The following tools are available
 
 # General approach
 A task should always be planned out first (even if the user forgets to ask for a plan). Before implementing the plan, the user should always be notified and asked for permission to continue
-Plans should always be written to a file before starting the implementation - to allow for referencing it if/when a process is interrupted. Save the file in the `~/.llm-output`.
+Plans should always be written to a file before starting the implementation - to allow for referencing it if/when a process is interrupted. Save the file in the `~/.llm-output` directory.
 
-All temporary output should be saved in `~/.llm-output`.
+All temporary output should be saved in `~/.llm-output` in a subdirectory named after the current repository/branch (either or a combination - whatever makes sense for ease of finding the relevant files again).
 
 When fixing an issue, a failing test replicating the issue MUST ALWAYS be created first, then the issue fixed (with input from/completely by a human). An issue is only fixed once the test passes. Additional tests may be added during the fixing process if new context is found.
+
+ALWAYS ASK for permission before running tests
