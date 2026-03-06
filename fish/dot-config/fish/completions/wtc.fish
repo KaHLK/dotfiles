@@ -22,8 +22,8 @@ function __wtc_available_branches
     printf '%s\n' $all_branches
 end
 
-# First argument: directory path completion
-complete -c wtc -n __wtc_needs_dir -xa '(__fish_complete_directories)'
+# First argument: no path completion (user types directory name)
+complete -c wtc -n __wtc_needs_dir -f
 
 # Second argument: git branch completion (no file completions)
 complete -c wtc -n __wtc_needs_branch -f -a '(__wtc_available_branches)'

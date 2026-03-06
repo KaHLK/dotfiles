@@ -1,10 +1,21 @@
 function wtc --description 'Create a git worktree and open it in a tmux window with opencode'
+    # Check if in a git repository
+    if not git rev-parse --is-inside-work-tree >/dev/null 2>&1
+        echo "Warning: Not in a git repository. Aborting."
+        return 1
+    end
+
     if test (count $argv) -lt 1 -o (count $argv) -gt 2
         echo "Usage: wtc <dir> [branch]"
         return 1
     end
 
-    set -l dir $argv[1]
+    # Get the git repository root
+    set -l repo_root (git rev-parse --show-toplevel)
+    set -l parent_dir (dirname $repo_root)
+    
+    set -l dir_name $argv[1]
+    set -l dir "$parent_dir/$dir_name"
     set -l branch
 
     if test (count $argv) -eq 2
@@ -42,10 +53,29 @@ function wtc --description 'Create a git worktree and open it in a tmux window w
         end
     end
 
+    # Confirm workspace location before creating
+    echo "Workspace will be created at: $dir"
+    read --prompt-str="Proceed? [y/N] " --nchars 1 confirm
+    if not string match -qi 'y' -- $confirm
+        echo "Aborted."
+        return 1
+    end
+
     git worktree add $dir $branch
     or return 1
 
     set -l abs_dir (realpath $dir)
+
+    # Symlink .env for stack (Pluto-Technology) worktrees
+    set -l remote_url (git remote get-url origin 2>/dev/null)
+    if string match -q '*Pluto-Technology*' -- $remote_url
+        for app_dir in js/apps/webapp js/apps/plutowork js/apps/e2e
+            if test -d $abs_dir/$app_dir
+                ln -s ../../../../.env $abs_dir/$app_dir/.env
+                echo "Symlinked .env in $app_dir"
+            end
+        end
+    end
 
     _wt $abs_dir
 end
