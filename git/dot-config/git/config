@@ -5,11 +5,14 @@
 [github]
     user = kahlk
 
+[init]
+    defaultBranch = main
+
 [alias]
     c = commit
     s = status
-    lg = log --oneline --graph
     l = log --oneline
+    lg = log --oneline --graph
 
 [pull]
     ff = only
@@ -22,15 +25,22 @@
     colorMoved = plain
     mnemonicPrefix = true
 
-[tag]
-    sort = -version:refname
-
-[init]
-    defaultBranch = main
-
 [core]
     editor = nvim
     hooksPath = $GIT_DIR/hooks
+
+[commit]
+    verbose = true
+
+[column]
+    ui = auto
+
+[branch]
+    sort = -committerdate
+
+[tag]
+    sort = -version:refname
+
 
 [rerere]
 	enabled = true
