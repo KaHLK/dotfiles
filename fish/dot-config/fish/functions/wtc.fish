@@ -13,7 +13,7 @@ function wtc --description 'Create a git worktree and open it in a tmux window w
     # Get the git repository root
     set -l repo_root (git rev-parse --show-toplevel)
     set -l parent_dir (dirname $repo_root)
-    
+
     set -l dir_name $argv[1]
     set -l dir "$parent_dir/$dir_name"
     set -l branch
@@ -56,7 +56,7 @@ function wtc --description 'Create a git worktree and open it in a tmux window w
     # Confirm workspace location before creating
     echo "Workspace will be created at: $dir"
     read --prompt-str="Proceed? [y/N] " --nchars 1 confirm
-    if not string match -qi 'y' -- $confirm
+    if not string match -qi y -- $confirm
         echo "Aborted."
         return 1
     end
@@ -69,6 +69,7 @@ function wtc --description 'Create a git worktree and open it in a tmux window w
     # Symlink .env for stack (Pluto-Technology) worktrees
     set -l remote_url (git remote get-url origin 2>/dev/null)
     if string match -q '*Pluto-Technology*' -- $remote_url
+        ln -s .claude .opencode
         for app_dir in js/apps/webapp js/apps/plutowork js/apps/e2e
             if test -d $abs_dir/$app_dir
                 ln -s ../../../../.env $abs_dir/$app_dir/.env
