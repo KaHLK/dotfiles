@@ -69,7 +69,7 @@ function wtc --description 'Create a git worktree and open it in a tmux window w
     # Symlink .env for stack (Pluto-Technology) worktrees
     set -l remote_url (git remote get-url origin 2>/dev/null)
     if string match -q '*Pluto-Technology*' -- $remote_url
-        ln -s .claude .opencode
+        ln -s .claude $abs_dir/.opencode
         for app_dir in js/apps/webapp js/apps/plutowork js/apps/e2e
             if test -d $abs_dir/$app_dir
                 ln -s ../../../../.env $abs_dir/$app_dir/.env

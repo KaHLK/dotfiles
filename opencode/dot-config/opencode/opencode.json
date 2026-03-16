@@ -4,6 +4,9 @@
     "permission": {
         "external_directory": {
             "~/.llm-output": "allow"
+        },
+        "edit": {
+            "~/.llm-output": "allow"
         }
     }
 }
