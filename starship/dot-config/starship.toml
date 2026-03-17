@@ -24,9 +24,9 @@ format     = """
 [$behind]($style)\
 [$conflicted](bg:red fg:black)\
 [$up_to_date]($style)\
-[$modified](fg:yellow)\
-[$staged](fg:purple)\
-[$untracked](fg:red)\
+[$modified](fg:red)\
+[$staged](fg:yellow)\
+[$untracked](fg:purple)\
 """
 style      = "cyan"
 ahead      = "⇡${count} "
