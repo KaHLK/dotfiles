@@ -1,6 +1,7 @@
 add_newline = false
 command_timeout = 200
-format = "$directory$git_branch$git_status$character"
+format = "$directory$git_branch$git_state$git_status$character"
+right_format = "$git_metrics$cmd_duration"
 
 [character]
 error_symbol = "[✗](bold red)"
@@ -16,14 +17,13 @@ repo_root_format = "[$repo_root]($repo_root_style)[$path]($style)[$read_only]($r
 [git_branch]
 format = "[$symbol](green)[\\[$branch\\]](blue) "
 symbol = " "
+truncation_length = 16
+only_attached = true
 
 [git_status]
 format     = """
-[$ahead]($style)\
-[$diverged]($style)\
-[$behind]($style)\
+[$ahead_behind]($style)\
 [$conflicted](bg:red fg:black)\
-[$up_to_date]($style)\
 [$modified](fg:red)\
 [$staged](fg:yellow)\
 [$untracked](fg:purple)\
@@ -40,3 +40,6 @@ stashed    = ""
 staged     = "+${count} "
 renamed    = ""
 deleted    = ""
+
+[git_metrics]
+disabled = false
