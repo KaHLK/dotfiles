@@ -19,3 +19,5 @@ All temporary output should be saved in `~/.llm-output` in a subdirectory named 
 When fixing an issue, a failing test replicating the issue MUST ALWAYS be created first, then the issue fixed (with input from/completely by a human). An issue is only fixed once the test passes. Additional tests may be added during the fixing process if new context is found.
 
 ALWAYS ASK for permission before running tests
+
+For tsx files, ALWAYS keep the EXPORTED component as the FIRST component in the file. If there are multiple exported components, sort in terms of relevancy to the file name (ex. `Dropdown` component in `Dropdown.tsx` should come first)
