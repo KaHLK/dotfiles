@@ -1,0 +1,8 @@
+loglevel = "warn"
+telemetry = false
+
+[console]
+depth = 3
+
+[install]
+exact = true
