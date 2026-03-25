@@ -1,0 +1,19 @@
+font-family = "Fira Code"
+font-thicken = true
+
+theme = Xcode Dark hc
+background = #000000
+
+cursor-style = block
+
+window-decoration = true
+macos-titlebar-style = hidden
+macos-titlebar-proxy-icon = hidden
+quit-after-last-window-closed = true
+
+macos-icon = custom-style
+macos-icon-frame = plastic
+macos-icon-ghost-color = #f3dd70
+macos-icon-screen-color = #000
+
+shell-integration-features = no-cursor,ssh-env
