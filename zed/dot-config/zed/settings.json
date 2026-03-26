@@ -92,6 +92,22 @@
 			"settings": {
 				"require_config_file": true
 			}
+		},
+		"oxlint": {
+			"initialization_options": {
+				"settings": {
+					"run": "onType",
+					"unusedDisableDirectives": "warn",
+					"fixKind": "safe_fix"
+				}
+			}
+		},
+		"oxfmt": {
+			"initialization_options": {
+				"settings": {
+					"run": "onSave"
+				}
+			}
 		}
 	},
 	"code_actions_on_format": {
