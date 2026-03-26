@@ -1,0 +1,29 @@
+// Zed keymap
+//
+// For information on binding keys, see the Zed
+// documentation: https://zed.dev/docs/key-bindings
+//
+// To see the default key bindings run `zed: open default keymap`
+// from the command palette.
+[
+    {
+        "context": "Workspace",
+        "bindings": {
+            "ctrl-tab": "pane::ActivateNextItem",
+            "ctrl-shift-tab": "pane::ActivatePreviousItem"
+        }
+    },
+    {
+        "context": "Editor && vim_mode && vim_mode != insert && !BufferSearchBar",
+        "bindings": {
+            "g p": "editor::GoToDiagnostic",
+            "g shift-p": "editor::GoToPreviousDiagnostic"
+        }
+    },
+    {
+        "context": "vim_mode == visual",
+        "bindings": {
+            "shift-s": ["vim::PushAddSurrounds", {}]
+        }
+    }
+]
