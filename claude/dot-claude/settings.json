@@ -1,0 +1,10 @@
+{
+  "effortLevel": "high",
+  "permissions": {
+    "allow": [
+      "Read(~/.llm-output/**)",
+      "Edit(~/.llm-output/**)",
+      "Write(~/.llm-output/**)"
+    ]
+  }
+}

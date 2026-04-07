@@ -43,7 +43,9 @@
 		"button": false
 	},
 	"tabs": {
-		"git_status": true,
+		"activate_on_close": "left_neighbour",
+  "show_diagnostics": "all",
+  "git_status": true,
 		"file_icons": true
 	},
 	"terminal": {
