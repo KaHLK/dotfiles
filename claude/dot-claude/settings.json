@@ -9,7 +9,25 @@
     "allow": [
       "Read(~/.llm-output/**)",
       "Edit(~/.llm-output/**)",
-      "Write(~/.llm-output/**)"
+      "Write(~/.llm-output/**)",
+      "Bash(rg *)",
+      "Bash(fd *)",
+      "Bash(git log*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git stash list*)",
+      "Bash(git remote*)",
+      "Bash(git tag*)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(wc *)",
+      "Bash(jq *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(bat *)",
+      "Bash(eza *)"
     ]
   },
   "spinnerVerbs": {
