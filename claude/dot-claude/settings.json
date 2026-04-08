@@ -1,10 +1,30 @@
 {
-  "effortLevel": "high",
+  "env": {
+    "DISABLE_AUTOUPDATER": "1",
+    "CLAUDE_CODE_EFFORT_LEVEL": "max",
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "0",
+    "CLAUDE_CODE_NO_FLICKER": "1"
+  },
   "permissions": {
     "allow": [
       "Read(~/.llm-output/**)",
       "Edit(~/.llm-output/**)",
       "Write(~/.llm-output/**)"
     ]
+  },
+  "spinnerVerbs": {
+    "mode": "replace",
+    "verbs": [
+      "Working",
+      "Processing",
+      "Generating"
+    ]
+  },
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "high",
+  "showThinkingSummaries": true,
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/statusline-command.sh"
   }
 }
