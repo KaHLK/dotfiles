@@ -47,6 +47,21 @@ PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1
 # --- 5h rate limit ---
 FIVE_H=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
 [ -n "$FIVE_H" ] && FIVE_H=$(printf '%.0f' "$FIVE_H")
+FIVE_H_RESETS=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
+FIVE_H_REMAINING=""
+if [ -n "$FIVE_H_RESETS" ]; then
+  now=$(date +%s)
+  diff=$((FIVE_H_RESETS - now))
+  if [ "$diff" -gt 0 ]; then
+    hours=$((diff / 3600))
+    mins=$(( (diff % 3600) / 60 ))
+    if [ "$hours" -gt 0 ]; then
+      FIVE_H_REMAINING="${hours}h ${mins}m"
+    else
+      FIVE_H_REMAINING="${mins}m"
+    fi
+  fi
+fi
 
 BAR_WIDTH=10
 FILLED=$((PCT * BAR_WIDTH / 100))
@@ -92,7 +107,11 @@ if [ -n "$FIVE_H" ]; then
   else
     limit_color='\033[2;37m'   # dim white
   fi
-  right_parts+=("$(printf "${limit_color}5h:%d%%\033[0m" "$FIVE_H")")
+  if [ -n "$FIVE_H_REMAINING" ]; then
+    right_parts+=("$(printf "\033[2;37m|\033[0m ${limit_color}5h: %d%% (%s)\033[0m" "$FIVE_H" "$FIVE_H_REMAINING")")
+  else
+    right_parts+=("$(printf "\033[2;37m|\033[0m ${limit_color}5h: %d%%\033[0m" "$FIVE_H")")
+  fi
 fi
 
 # Build left and right strings
@@ -118,7 +137,7 @@ right_len=${#right_plain}
 # Get terminal width (read from /dev/tty since stdin is piped)
 cols=$(stty size < /dev/tty 2>/dev/null | awk '{print $2}')
 [ -z "$cols" ] && cols=$(tput cols 2>/dev/null || echo 80)
-padding=$((cols - left_len - right_len - 4))
+padding=$((cols - left_len - right_len - 5))
 [ "$padding" -lt 1 ] && padding=1
 
 printf '%s%*s%s\n' "$left" "$padding" "" "$right"
