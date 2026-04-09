@@ -1,0 +1,10 @@
+{
+  "bindings": [
+    {
+      "context": "Task",
+      "bindings": {
+        "ctrl+shift+b": "task:background"
+      }
+    }
+  ]
+}
