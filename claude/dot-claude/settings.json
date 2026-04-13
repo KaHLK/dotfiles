@@ -30,6 +30,18 @@
       "Bash(eza *)"
     ]
   },
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/statusline-command.sh"
+  },
+  "extraKnownMarketplaces": {
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman"
+      }
+    }
+  },
   "spinnerVerbs": {
     "mode": "replace",
     "verbs": [
@@ -41,8 +53,7 @@
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
   "showThinkingSummaries": true,
-  "statusLine": {
-    "type": "command",
-    "command": "bash ~/.claude/statusline-command.sh"
+  "enabledPlugins": {
+    "caveman@caveman": true
   }
 }
