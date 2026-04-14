@@ -50,6 +50,7 @@
       "Generating"
     ]
   },
+  "spinnerTipsEnabled": false,
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
   "showThinkingSummaries": true,
