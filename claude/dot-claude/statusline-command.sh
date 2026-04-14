@@ -41,6 +41,19 @@ fi
 # --- Model ---
 model=$(echo "$input" | jq -r '.model.display_name // ""')
 
+# --- Caveman mode ---
+caveman_text=""
+caveman_flag="$HOME/.claude/.caveman-active"
+if [ -f "$caveman_flag" ]; then
+  caveman_mode=$(cat "$caveman_flag" 2>/dev/null)
+  if [ "$caveman_mode" = "full" ] || [ -z "$caveman_mode" ]; then
+    caveman_text=$'\033[38;5;172m[CAVEMAN]\033[0m'
+  else
+    caveman_suffix=$(echo "$caveman_mode" | tr '[:lower:]' '[:upper:]')
+    caveman_text=$'\033[38;5;172m[CAVEMAN:'"${caveman_suffix}"$']\033[0m'
+  fi
+fi
+
 # --- Context used (progress bar) ---
 PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
 
@@ -81,6 +94,9 @@ fi
 # --- Assemble ---
 left_parts=()
 right_parts=()
+
+# Left: caveman mode in orange
+[ -n "$caveman_text" ] && left_parts+=("$caveman_text")
 
 # Left: directory in green
 left_parts+=("$(printf '\033[0;32m%s\033[0m' "$truncated")")
