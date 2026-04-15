@@ -34,6 +34,8 @@ function wtd --description "Delete a git worktree and its directory"
         return 0
     end
 
+    set -l branch (git -C $selected branch --show-current 2>/dev/null)
+
     if not git worktree remove $selected
         echo "Removal failed (possibly uncommitted changes)."
         read --prompt-str="Force remove? [y/N] " --nchars 1 force_confirm
@@ -46,4 +48,21 @@ function wtd --description "Delete a git worktree and its directory"
     end
 
     echo "Worktree removed."
+
+    if test -n "$branch"
+        read --prompt-str="Delete branch '$branch'? [y/N] " --nchars 1 branch_confirm
+        if string match -qi y -- $branch_confirm
+            if not git branch -d $branch
+                echo "Branch not fully merged."
+                read --prompt-str="Force delete? [y/N] " --nchars 1 force_branch_confirm
+                if string match -qi y -- $force_branch_confirm
+                    git branch -D $branch
+                    or return 1
+                else
+                    return 0
+                end
+            end
+            echo "Branch deleted."
+        end
+    end
 end
