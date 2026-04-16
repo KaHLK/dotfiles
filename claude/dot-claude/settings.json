@@ -1,7 +1,6 @@
 {
   "env": {
     "DISABLE_AUTOUPDATER": "1",
-    "CLAUDE_CODE_EFFORT_LEVEL": "max",
     "CLAUDE_CODE_ENABLE_TELEMETRY": "0",
     "CLAUDE_CODE_NO_FLICKER": "1"
   },
@@ -82,5 +81,6 @@
   },
   "alwaysThinkingEnabled": true,
   "effortLevel": "xhigh",
-  "showThinkingSummaries": true
+  "showThinkingSummaries": true,
+  "skipAutoPermissionPrompt": true
 }
