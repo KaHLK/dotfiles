@@ -30,9 +30,38 @@
       "Bash(eza *)"
     ]
   },
+  "model": "opus",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/read-once/hook.sh"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/read-once/compact.sh"
+          }
+        ]
+      }
+    ]
+  },
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "caveman@caveman": true,
+    "typescript-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "caveman": {
@@ -42,6 +71,7 @@
       }
     }
   },
+  "spinnerTipsEnabled": false,
   "spinnerVerbs": {
     "mode": "replace",
     "verbs": [
@@ -50,11 +80,7 @@
       "Generating"
     ]
   },
-  "spinnerTipsEnabled": false,
   "alwaysThinkingEnabled": true,
-  "effortLevel": "high",
-  "showThinkingSummaries": true,
-  "enabledPlugins": {
-    "caveman@caveman": true
-  }
+  "effortLevel": "xhigh",
+  "showThinkingSummaries": true
 }
