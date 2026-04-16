@@ -1,0 +1,53 @@
+{
+    "assist": {
+        "actions": {
+            "source": {
+                "organizeImports": "on",
+                "useSortedAttributes": "off",
+                "useSortedKeys": "off"
+            }
+        },
+        "enabled": true
+    },
+    "css": {
+        "linter": {
+            "enabled": false
+        }
+    },
+    "files": {
+        "ignoreUnknown": true,
+        "includes": ["**/*.json"]
+    },
+    "formatter": {
+        "bracketSpacing": true,
+        "enabled": true,
+        "formatWithErrors": true,
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 80
+    },
+    "javascript": {
+        "formatter": {
+            "arrowParentheses": "always",
+            "jsxQuoteStyle": "double",
+            "quoteProperties": "asNeeded",
+            "quoteStyle": "double",
+            "semicolons": "always",
+            "trailingCommas": "all"
+        }
+    },
+    "json": {
+        "formatter": {
+            "trailingCommas": "none"
+        }
+    },
+    "linter": {
+        "enabled": true
+    },
+    "vcs": {
+        "clientKind": "git",
+        "defaultBranch": "master",
+        "enabled": true,
+        "useIgnoreFile": true
+    }
+}
