@@ -1,23 +1,22 @@
 # Alternative tools
-* Use `rg` (ripgrep) in favor of `grep`
-* Use `fd` in favor of `find`
-* Use `rip` (rip2) in favor of `rm`
+* Use `rg` (ripgrep) over `grep`
+* Use `fd` over `find`
+* Use `rip` (rip2) over `rm`
 
-* Use modern git commands such as `switch` and `restore` instead of `checkout`
+* Use modern git: `switch`/`restore` not `checkout`
 
 # Available tools
-The following tools are available
+Available
 * `fzf`
 * `jq`
 
 # General approach
-A task should always be planned out first (even if the user forgets to ask for a plan). Before implementing the plan, the user should always be notified and asked for permission to continue
-Plans should always be written to a file before starting the implementation - to allow for referencing it if/when a process is interrupted. Save the file in the `~/.llm-output` directory.
+ALWAYS tee + head/tail output: `some command | tee ~/.llm-output/some-path | tail -n 10`. Max `-n` 50. Not enough? Re-read tee'd file with offset (`bat ~/.llm-output/some-path | tail -n 100 | head -n 50`).
 
-All temporary output should be saved in `~/.llm-output` in a subdirectory named after the current repository/branch (either or a combination - whatever makes sense for ease of finding the relevant files again).
+Temp output save in `~/.llm-output`, subdir named after repo/branch (whichever easiest to find again).
 
-When fixing an issue, a failing test replicating the issue MUST ALWAYS be created first, then the issue fixed (with input from/completely by a human). An issue is only fixed once the test passes. Additional tests may be added during the fixing process if new context is found.
+Fix issue: failing test replicating issue MUST come first, then fix (human input or human-done). Issue fixed only when test passes. Add more tests if new context appears.
 
-ALWAYS ASK for permission before running tests
+ALWAYS ASK permission before running tests
 
-For tsx files, ALWAYS keep the EXPORTED component as the FIRST component in the file. If there are multiple exported components, sort in terms of relevancy to the file name (ex. `Dropdown` component in `Dropdown.tsx` should come first)
+Tsx files: EXPORTED component ALWAYS FIRST. Multiple exports? Sort by relevance to filename (ex. `Dropdown` in `Dropdown.tsx` first).
