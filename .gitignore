@@ -1,5 +1,6 @@
 fish_variables
 fish_frozen_*
+**/fish/conf.d/*
 **/completions/*
 !**/completions/wtc.fish
 opencode-notifier-state.json
