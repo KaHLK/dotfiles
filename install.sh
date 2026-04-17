@@ -16,6 +16,16 @@ if ! [ -x "$(command -v bun)" ]; then
     curl -fsSL https://bun.sh/install | bash
 fi
 
+# Install claude-code
+if ! [ -x "$(command -v claude)" ]; then
+    echo ""
+    echo "Installing claude-code..."
+    curl -fsSL https://claude.ai/install.sh | bash
+fi
+
+# Install `read-once` for claude-code
+curl -fsSL https://raw.githubusercontent.com/Bande-a-Bonnot/Boucle-framework/main/tools/read-once/install.sh | bash
+
 # Run OS-specific install script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OS="$(uname -s)"
