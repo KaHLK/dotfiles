@@ -209,6 +209,9 @@
                     "name": "biome"
                 }
             }
+        },
+        "Markdown": {
+            "language_servers": ["!oxfmt", "..."]
         }
     },
     "file_types": {
