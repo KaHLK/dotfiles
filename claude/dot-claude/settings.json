@@ -26,10 +26,10 @@
       "Bash(head *)",
       "Bash(tail *)",
       "Bash(bat *)",
-      "Bash(eza *)"
+      "Bash(eza *)",
+      "Bash(tee ~/.llm-output/**)"
     ]
   },
-  "model": "opus",
   "hooks": {
     "PreToolUse": [
       {
@@ -82,5 +82,6 @@
   "alwaysThinkingEnabled": true,
   "effortLevel": "xhigh",
   "showThinkingSummaries": true,
+  "editorMode": "vim",
   "skipAutoPermissionPrompt": true
 }
