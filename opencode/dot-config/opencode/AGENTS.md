@@ -20,3 +20,5 @@ Fix issue: failing test replicating issue MUST come first, then fix (human input
 ALWAYS ASK permission before running tests
 
 Tsx files: EXPORTED component ALWAYS FIRST. Multiple exports? Sort by relevance to filename (ex. `Dropdown` in `Dropdown.tsx` first).
+
+I ALWAYS want to inspect code before a commit. ALWAYS ASK permission before commit
