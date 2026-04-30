@@ -47,6 +47,19 @@
         }
         .picker button.active { color: var(--text); border-color: var(--accent); }
         .picker button:hover { color: var(--text); }
+        .refresh { display: flex; gap: 8px; align-items: center; }
+        .refresh button {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 13px;
+        }
+        .refresh button:hover { border-color: var(--accent); }
+        .refresh button.spinning { color: var(--muted); cursor: progress; }
+        .refresh-status { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
         main { padding: 24px; }
         .charts {
             display: flex;
@@ -186,6 +199,10 @@
             <button data-since="-7 days">7d</button>
             <button data-since="-30 days">30d</button>
             <button data-since="">All</button>
+        </div>
+        <div class="refresh">
+            <button id="btn-refresh" title="Refetch now">↻</button>
+            <span class="refresh-status" id="refresh-status"></span>
         </div>
     </header>
 
@@ -500,6 +517,69 @@
             ]);
         }
 
+        // ---------- Refresh (manual + visibility-aware interval) ----------
+        const REFRESH_MS = 30_000;
+        let refreshTimer = null;
+        let refreshing = false;
+        let lastRefreshAt = null;
+
+        function fmtRelative(d) {
+            const s = Math.round((Date.now() - d) / 1000);
+            if (s < 5) return "just now";
+            if (s < 60) return `${s}s ago`;
+            const m = Math.round(s / 60);
+            if (m < 60) return `${m}m ago`;
+            const h = Math.round(m / 60);
+            return `${h}h ago`;
+        }
+
+        function updateRefreshStatus() {
+            const el = document.getElementById("refresh-status");
+            if (!el) return;
+            el.textContent = lastRefreshAt ? `updated ${fmtRelative(lastRefreshAt)}` : "";
+        }
+        setInterval(updateRefreshStatus, 5_000);
+
+        async function refreshNow() {
+            if (refreshing) return;
+            refreshing = true;
+            const btn = document.getElementById("btn-refresh");
+            btn?.classList.add("spinning");
+            try {
+                await renderAll();
+                lastRefreshAt = Date.now();
+                updateRefreshStatus();
+            } catch (e) {
+                console.error(e);
+                const el = document.getElementById("refresh-status");
+                if (el) el.textContent = `error: ${e.message}`;
+            } finally {
+                refreshing = false;
+                btn?.classList.remove("spinning");
+            }
+        }
+
+        function startAutoRefresh() {
+            stopAutoRefresh();
+            refreshTimer = setInterval(refreshNow, REFRESH_MS);
+        }
+        function stopAutoRefresh() {
+            if (refreshTimer != null) {
+                clearInterval(refreshTimer);
+                refreshTimer = null;
+            }
+        }
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                stopAutoRefresh();
+            } else {
+                refreshNow();
+                startAutoRefresh();
+            }
+        });
+        document.getElementById("btn-refresh").addEventListener("click", refreshNow);
+
         // ---------- Range picker ----------
         document.getElementById("range-picker").addEventListener("click", (e) => {
             const btn = e.target.closest("button");
@@ -507,7 +587,7 @@
             for (const b of e.currentTarget.querySelectorAll("button")) b.classList.remove("active");
             btn.classList.add("active");
             activeSince = btn.dataset.since;
-            renderAll();
+            refreshNow();
         });
 
         // ---------- Browse section ----------
@@ -589,10 +669,8 @@
         document.getElementById("btn-load").addEventListener("click", loadFirst);
 
         // ---------- Init ----------
-        renderAll().catch(e => {
-            console.error(e);
-            alert(e.message);
-        });
+        refreshNow();
+        startAutoRefresh();
     </script>
 </body>
 </html>
