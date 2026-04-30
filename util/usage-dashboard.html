@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Claude Code usage</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --accent-2: #f78166;
+            --accent-3: #3fb950;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font: 14px/1.4 -apple-system, BlinkMacSystemFont, "SF Mono", Menlo, monospace;
+        }
+        header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        header h1 { margin: 0; font-size: 18px; font-weight: 500; }
+        .picker { display: flex; gap: 4px; }
+        .picker button {
+            background: var(--surface);
+            color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 13px;
+        }
+        .picker button.active { color: var(--text); border-color: var(--accent); }
+        .picker button:hover { color: var(--text); }
+        main { padding: 24px; }
+        .charts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .chart-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 16px;
+            flex: 1 1 520px;
+            max-width: 90vw;
+            display: flex;
+            flex-direction: column;
+        }
+        .chart-card h2 {
+            margin: 0 0 12px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .chart-canvas-wrap {
+            position: relative;
+            height: 320px;
+            width: 100%;
+        }
+        .chart-canvas-wrap canvas {
+            position: absolute;
+            inset: 0;
+        }
+        .chart-card details {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+        .chart-card details code {
+            display: block;
+            background: var(--bg);
+            padding: 6px;
+            margin-top: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .summary-table {
+            font-size: 13px;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .summary-table th, .summary-table td {
+            border-bottom: 1px solid var(--border);
+            padding: 6px 8px;
+            text-align: left;
+        }
+        .summary-table th { color: var(--muted); font-weight: 500; }
+        .summary-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+        section.browse {
+            margin-top: 32px;
+            border-top: 1px solid var(--border);
+            padding-top: 24px;
+        }
+        section.browse h2 {
+            margin: 0 0 16px;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+        .tabs button {
+            background: var(--surface);
+            color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 13px;
+        }
+        .tabs button.active {
+            color: var(--text);
+            border-color: var(--accent);
+            background: var(--bg);
+        }
+        .browse-actions { margin-bottom: 12px; display: flex; gap: 8px; align-items: center; }
+        .btn {
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .browse-status { color: var(--muted); font-size: 12px; }
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            background: var(--surface);
+        }
+        table.rows {
+            border-collapse: collapse;
+            font-size: 12px;
+            width: 100%;
+        }
+        table.rows th, table.rows td {
+            border-bottom: 1px solid var(--border);
+            padding: 4px 8px;
+            text-align: left;
+            white-space: nowrap;
+            max-width: 320px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        table.rows th {
+            position: sticky;
+            top: 0;
+            background: var(--bg);
+            color: var(--muted);
+            font-weight: 500;
+            z-index: 1;
+        }
+        table.rows td.num { text-align: right; font-variant-numeric: tabular-nums; }
+        table.rows td.null { color: var(--muted); }
+        .load-more-wrap { padding: 12px; text-align: center; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Claude Code usage</h1>
+        <div class="picker" id="range-picker">
+            <button data-since="-1 hour">1h</button>
+            <button data-since="-24 hours" class="active">24h</button>
+            <button data-since="-7 days">7d</button>
+            <button data-since="-30 days">30d</button>
+            <button data-since="">All</button>
+        </div>
+    </header>
+
+    <main>
+        <div class="charts">
+            <div class="chart-card">
+                <h2>Limits over time</h2>
+                <div class="chart-canvas-wrap"><canvas id="chart-limits"></canvas></div>
+                <details><summary>Data source</summary><code id="src-limits"></code></details>
+            </div>
+            <div class="chart-card">
+                <h2>Context % over time</h2>
+                <div class="chart-canvas-wrap"><canvas id="chart-context"></canvas></div>
+                <details><summary>Data source</summary><code id="src-context"></code></details>
+            </div>
+            <div class="chart-card">
+                <h2>Tokens per day</h2>
+                <div class="chart-canvas-wrap"><canvas id="chart-tokens-day"></canvas></div>
+                <details><summary>Data source</summary><code id="src-tokens-day"></code></details>
+            </div>
+            <div class="chart-card">
+                <h2>Tokens by model</h2>
+                <div class="chart-canvas-wrap"><canvas id="chart-tokens-model"></canvas></div>
+                <details><summary>Data source</summary><code id="src-tokens-model"></code></details>
+            </div>
+            <div class="chart-card">
+                <h2>Recent sessions</h2>
+                <div style="overflow: auto; max-height: 320px;">
+                    <table class="summary-table" id="summary-sessions">
+                        <thead><tr>
+                            <th>Session</th><th>Name</th>
+                            <th class="num">Turns</th><th class="num">Tokens</th>
+                            <th class="num">5h%</th><th class="num">7d%</th><th class="num">Cost $</th>
+                        </tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <details><summary>Data source</summary><code id="src-sessions"></code></details>
+            </div>
+        </div>
+
+        <section class="browse">
+            <h2>Browse rows</h2>
+            <div class="tabs" id="browse-tabs">
+                <button data-table="rate_limit_samples" class="active">rate_limit_samples</button>
+                <button data-table="usage_events">usage_events</button>
+                <button data-table="session_events">session_events</button>
+            </div>
+            <div class="browse-actions">
+                <button class="btn" id="btn-load">Load 5000 rows</button>
+                <span class="browse-status" id="browse-status"></span>
+            </div>
+            <div class="table-wrap" id="table-wrap"></div>
+            <div class="load-more-wrap" id="load-more-wrap"></div>
+        </section>
+    </main>
+
+    <script>
+        const PAGE_SIZE = 5000;
+        const LONG_FIELDS = new Set(["raw_json", "raw_usage_json", "transcript_path"]);
+
+        let activeSince = "-24 hours";
+        const charts = {};
+
+        // ---------- API helpers ----------
+        async function fetchTable(table, params) {
+            const qs = new URLSearchParams();
+            for (const [k, v] of Object.entries(params)) {
+                if (v != null && v !== "") qs.set(k, v);
+            }
+            const url = `/api/${table}?${qs.toString()}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`${url} → ${res.status}: ${await res.text()}`);
+            return { url, data: await res.json() };
+        }
+
+        function setSrc(id, url) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = url;
+        }
+
+        // ---------- Charts ----------
+        function destroyChart(id) {
+            if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+        }
+
+        const TIME_FORMATS = {
+            millisecond: "HH:mm:ss.SSS",
+            second: "HH:mm:ss",
+            minute: "HH:mm",
+            hour: "HH:mm",
+            day: "MMM d",
+            week: "MMM d",
+            month: "MMM yyyy",
+            quarter: "qqq yyyy",
+            year: "yyyy",
+        };
+        const COMMON_OPTS = {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            scales: {
+                x: {
+                    type: "time",
+                    time: { displayFormats: TIME_FORMATS, tooltipFormat: "yyyy-MM-dd HH:mm:ss" },
+                    ticks: { color: "#8b949e" },
+                    grid: { color: "#21262d" },
+                },
+                y: { ticks: { color: "#8b949e" }, grid: { color: "#21262d" } },
+            },
+            plugins: {
+                legend: { labels: { color: "#e6edf3" } },
+            },
+        };
+
+        async function renderLimits() {
+            const { url, data } = await fetchTable("rate_limit_samples", {
+                since: activeSince, limit: 5000, order: "asc",
+            });
+            setSrc("src-limits", url);
+            const five = [], seven = [];
+            for (const r of data.rows) {
+                if (r.five_h_pct != null) five.push({ x: r.ts, y: r.five_h_pct });
+                if (r.seven_day_pct != null) seven.push({ x: r.ts, y: r.seven_day_pct });
+            }
+            destroyChart("limits");
+            charts.limits = new Chart(document.getElementById("chart-limits"), {
+                type: "line",
+                data: {
+                    datasets: [
+                        { label: "5h %", data: five, borderColor: "#f78166", backgroundColor: "#f7816633", pointRadius: 0, tension: 0.1 },
+                        { label: "7-day %", data: seven, borderColor: "#58a6ff", backgroundColor: "#58a6ff33", pointRadius: 0, tension: 0.1 },
+                    ],
+                },
+                options: { ...COMMON_OPTS, scales: { ...COMMON_OPTS.scales, y: { ...COMMON_OPTS.scales.y, min: 0, max: 100 } } },
+            });
+        }
+
+        function colorForSession(sessionId) {
+            let hash = 0;
+            for (let i = 0; i < sessionId.length; i++) {
+                hash = ((hash << 5) - hash + sessionId.charCodeAt(i)) | 0;
+            }
+            return `hsl(${Math.abs(hash) % 360}, 65%, 60%)`;
+        }
+
+        async function renderContext() {
+            const { url, data } = await fetchTable("rate_limit_samples", {
+                since: activeSince, limit: 5000, order: "asc",
+            });
+            setSrc("src-context", url);
+            const bySession = new Map();
+            const nameBySession = new Map();
+            for (const r of data.rows) {
+                if (r.context_used_pct == null || !r.session_id) continue;
+                if (!bySession.has(r.session_id)) bySession.set(r.session_id, []);
+                bySession.get(r.session_id).push({ x: r.ts, y: r.context_used_pct });
+                if (r.session_name && !nameBySession.has(r.session_id)) {
+                    nameBySession.set(r.session_id, r.session_name);
+                }
+            }
+            const sessionDatasets = [...bySession.entries()].map(([sid, points]) => ({
+                label: nameBySession.get(sid) ?? sid.slice(0, 8),
+                data: points,
+                borderColor: colorForSession(sid),
+                backgroundColor: colorForSession(sid) + "33",
+                pointRadius: 0,
+                tension: 0.1,
+                borderWidth: 1.5,
+            }));
+            const compactRes = await fetchTable("session_events", {
+                since: activeSince, kind: "PostCompact", limit: 1000, order: "asc",
+            });
+            destroyChart("context");
+            charts.context = new Chart(document.getElementById("chart-context"), {
+                type: "line",
+                data: {
+                    datasets: [
+                        ...sessionDatasets,
+                        {
+                            label: "PostCompact",
+                            data: compactRes.data.rows.map(r => ({ x: r.ts, y: 100 })),
+                            borderColor: "#f78166",
+                            backgroundColor: "#f78166",
+                            showLine: false,
+                            pointRadius: 4,
+                            pointStyle: "triangle",
+                        },
+                    ],
+                },
+                options: {
+                    ...COMMON_OPTS,
+                    scales: { ...COMMON_OPTS.scales, y: { ...COMMON_OPTS.scales.y, min: 0, max: 100 } },
+                    plugins: { ...COMMON_OPTS.plugins, legend: { display: false } },
+                },
+            });
+        }
+
+        // Per session, take the last (max-ts) rate_limit_sample with non-null token totals.
+        // ctx_total_* are running session totals, so the latest sample = full session total.
+        function sessionTotalsFromSamples(rows) {
+            const lastBySession = new Map();
+            for (const r of rows) {
+                if (!r.session_id) continue;
+                if (r.ctx_total_input_tokens == null && r.ctx_total_output_tokens == null) continue;
+                const cur = lastBySession.get(r.session_id);
+                if (!cur || r.ts > cur.ts) lastBySession.set(r.session_id, r);
+            }
+            return [...lastBySession.values()].map(r => ({
+                session_id: r.session_id,
+                ts: r.ts,
+                model: r.model_display ?? r.model_id ?? "unknown",
+                tokens: (r.ctx_total_input_tokens ?? 0) + (r.ctx_total_output_tokens ?? 0),
+            }));
+        }
+
+        async function renderTokensDay() {
+            const { url, data } = await fetchTable("rate_limit_samples", {
+                since: activeSince, limit: 5000, order: "asc",
+            });
+            setSrc("src-tokens-day", url);
+            const totals = sessionTotalsFromSamples(data.rows);
+            const byDay = {};
+            for (const t of totals) {
+                const d = t.ts.slice(0, 10);
+                byDay[d] = (byDay[d] ?? 0) + t.tokens;
+            }
+            const labels = Object.keys(byDay).sort();
+            const values = labels.map(d => byDay[d]);
+            destroyChart("tokensDay");
+            charts.tokensDay = new Chart(document.getElementById("chart-tokens-day"), {
+                type: "bar",
+                data: { labels, datasets: [{ label: "tokens", data: values, backgroundColor: "#58a6ff" }] },
+                options: { ...COMMON_OPTS, scales: { x: { type: "category", ticks: { color: "#8b949e" }, grid: { color: "#21262d" } }, y: COMMON_OPTS.scales.y } },
+            });
+        }
+
+        async function renderTokensModel() {
+            const { url, data } = await fetchTable("rate_limit_samples", {
+                since: activeSince, limit: 5000, order: "asc",
+            });
+            setSrc("src-tokens-model", url);
+            const totals = sessionTotalsFromSamples(data.rows);
+            const byModel = {};
+            for (const t of totals) {
+                byModel[t.model] = (byModel[t.model] ?? 0) + t.tokens;
+            }
+            const labels = Object.keys(byModel);
+            const values = labels.map(m => byModel[m]);
+            destroyChart("tokensModel");
+            charts.tokensModel = new Chart(document.getElementById("chart-tokens-model"), {
+                type: "bar",
+                data: { labels, datasets: [{ label: "tokens", data: values, backgroundColor: "#3fb950" }] },
+                options: { ...COMMON_OPTS, indexAxis: "y", scales: { x: { type: "linear", ticks: { color: "#8b949e" }, grid: { color: "#21262d" } }, y: { type: "category", ticks: { color: "#8b949e" }, grid: { color: "#21262d" } } } },
+            });
+        }
+
+        async function renderSessions() {
+            const { url, data } = await fetchTable("rate_limit_samples", {
+                since: activeSince, limit: 5000, order: "desc",
+            });
+            setSrc("src-sessions", url);
+            const usageRes = await fetchTable("usage_events", {
+                since: activeSince, limit: 5000, order: "desc",
+            });
+            const turnsBySession = {};
+            const tokensBySession = {};
+            for (const r of usageRes.data.rows) {
+                turnsBySession[r.session_id] = (turnsBySession[r.session_id] ?? 0) + 1;
+                const tokens = (r.input_tokens ?? 0) + (r.output_tokens ?? 0)
+                    + (r.cache_read_tokens ?? 0)
+                    + (r.cache_create_5m_tokens ?? 0) + (r.cache_create_1h_tokens ?? 0);
+                tokensBySession[r.session_id] = (tokensBySession[r.session_id] ?? 0) + tokens;
+            }
+            const summary = {};
+            for (const r of data.rows) {
+                if (!r.session_id) continue;
+                const s = summary[r.session_id] ?? { name: null, max5h: 0, max7d: 0, cost: null, lastTs: "" };
+                if (!s.name && r.session_name) s.name = r.session_name;
+                if ((r.five_h_pct ?? 0) > s.max5h) s.max5h = r.five_h_pct ?? 0;
+                if ((r.seven_day_pct ?? 0) > s.max7d) s.max7d = r.seven_day_pct ?? 0;
+                if (r.ts > s.lastTs) { s.lastTs = r.ts; if (r.cost_total_usd != null) s.cost = r.cost_total_usd; }
+                summary[r.session_id] = s;
+            }
+            const tbody = document.querySelector("#summary-sessions tbody");
+            tbody.innerHTML = "";
+            const sessions = Object.entries(summary)
+                .sort((a, b) => b[1].lastTs.localeCompare(a[1].lastTs))
+                .slice(0, 20);
+            for (const [sid, s] of sessions) {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td title="${sid}">${sid.slice(0, 8)}</td>
+                    <td>${s.name ?? "—"}</td>
+                    <td class="num">${turnsBySession[sid] ?? 0}</td>
+                    <td class="num">${(tokensBySession[sid] ?? 0).toLocaleString()}</td>
+                    <td class="num">${s.max5h.toFixed(0)}</td>
+                    <td class="num">${s.max7d.toFixed(0)}</td>
+                    <td class="num">${s.cost != null ? s.cost.toFixed(3) : "—"}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+
+        async function renderAll() {
+            await Promise.all([
+                renderLimits(),
+                renderContext(),
+                renderTokensDay(),
+                renderTokensModel(),
+                renderSessions(),
+            ]);
+        }
+
+        // ---------- Range picker ----------
+        document.getElementById("range-picker").addEventListener("click", (e) => {
+            const btn = e.target.closest("button");
+            if (!btn) return;
+            for (const b of e.currentTarget.querySelectorAll("button")) b.classList.remove("active");
+            btn.classList.add("active");
+            activeSince = btn.dataset.since;
+            renderAll();
+        });
+
+        // ---------- Browse section ----------
+        let browseTable = "rate_limit_samples";
+        let browseRows = [];
+        let browseColumns = [];
+        let browseHasMore = false;
+
+        function resetBrowse() {
+            browseRows = [];
+            browseColumns = [];
+            browseHasMore = false;
+            document.getElementById("table-wrap").innerHTML = "";
+            document.getElementById("load-more-wrap").innerHTML = "";
+            document.getElementById("browse-status").textContent = "";
+        }
+
+        function renderRowCell(field, value) {
+            if (value == null) return `<td class="null">—</td>`;
+            if (typeof value === "number") return `<td class="num">${value}</td>`;
+            const s = String(value);
+            if (LONG_FIELDS.has(field) && s.length > 80) {
+                return `<td title="${escapeAttr(s)}">${escapeHtml(s.slice(0, 80))}…</td>`;
+            }
+            return `<td>${escapeHtml(s)}</td>`;
+        }
+
+        function escapeHtml(s) {
+            return s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+        }
+        function escapeAttr(s) {
+            return s.replace(/["&<>]/g, c => ({ "\"": "&quot;", "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+        }
+
+        function paintTable() {
+            const wrap = document.getElementById("table-wrap");
+            if (browseRows.length === 0) { wrap.innerHTML = ""; return; }
+            const head = browseColumns.map(c => `<th>${escapeHtml(c)}</th>`).join("");
+            const body = browseRows.map(r =>
+                "<tr>" + browseColumns.map(c => renderRowCell(c, r[c])).join("") + "</tr>"
+            ).join("");
+            wrap.innerHTML = `<table class="rows"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+            const moreWrap = document.getElementById("load-more-wrap");
+            moreWrap.innerHTML = browseHasMore
+                ? `<button class="btn" id="btn-load-more">Load more (${browseRows.length} loaded)</button>`
+                : `<span class="browse-status">${browseRows.length} rows — end of data</span>`;
+            const btnMore = document.getElementById("btn-load-more");
+            if (btnMore) btnMore.addEventListener("click", loadMore);
+        }
+
+        async function loadFirst() {
+            resetBrowse();
+            document.getElementById("browse-status").textContent = "Loading…";
+            const { data } = await fetchTable(browseTable, { limit: PAGE_SIZE, offset: 0, order: "desc" });
+            browseRows = data.rows;
+            browseColumns = data.rows[0] ? Object.keys(data.rows[0]) : [];
+            browseHasMore = data.hasMore;
+            document.getElementById("browse-status").textContent = `${browseTable}`;
+            paintTable();
+        }
+
+        async function loadMore() {
+            const btn = document.getElementById("btn-load-more");
+            if (btn) btn.disabled = true;
+            const { data } = await fetchTable(browseTable, { limit: PAGE_SIZE, offset: browseRows.length, order: "desc" });
+            browseRows = browseRows.concat(data.rows);
+            browseHasMore = data.hasMore;
+            paintTable();
+        }
+
+        document.getElementById("browse-tabs").addEventListener("click", (e) => {
+            const btn = e.target.closest("button");
+            if (!btn) return;
+            for (const b of e.currentTarget.querySelectorAll("button")) b.classList.remove("active");
+            btn.classList.add("active");
+            browseTable = btn.dataset.table;
+            resetBrowse();
+        });
+        document.getElementById("btn-load").addEventListener("click", loadFirst);
+
+        // ---------- Init ----------
+        renderAll().catch(e => {
+            console.error(e);
+            alert(e.message);
+        });
+    </script>
+</body>
+</html>
