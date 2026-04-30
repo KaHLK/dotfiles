@@ -3,6 +3,10 @@
 
 input=$(cat)
 
+# --- Usage logger (background, never blocks render) ---
+( printf '%s' "$input" | bun ~/.claude/hooks/usage-log/log-statusline.ts ) >/dev/null 2>&1 &
+disown
+
 # --- Working directory ---
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // ""')
 home="$HOME"

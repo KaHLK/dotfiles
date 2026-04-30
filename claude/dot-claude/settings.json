@@ -49,6 +49,54 @@
           {
             "type": "command",
             "command": "~/.claude/read-once/compact.sh"
+          },
+          {
+            "type": "command",
+            "command": "bun ~/.claude/hooks/usage-log/log-usage.ts"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun ~/.claude/hooks/usage-log/log-usage.ts"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun ~/.claude/hooks/usage-log/log-usage.ts"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun ~/.claude/hooks/usage-log/log-usage.ts"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun ~/.claude/hooks/usage-log/log-usage.ts"
           }
         ]
       }
