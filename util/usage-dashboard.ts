@@ -148,7 +148,7 @@ function queryTable<K extends TableName>(
         if (v != null) filters.push({ col, val: v });
     }
 
-    const whereSince = since ? "AND ts > datetime('now', ?)" : "";
+    const whereSince = since ? "AND datetime(ts) > datetime('now', ?)" : "";
     const whereFilters = filters.map((f) => `AND ${f.col} = ?`).join(" ");
     const sql = `SELECT * FROM ${table} WHERE 1=1 ${whereSince} ${whereFilters} ORDER BY ts ${order} LIMIT ? OFFSET ?`;
 
