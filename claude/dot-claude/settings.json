@@ -57,6 +57,17 @@
         ]
       }
     ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "osascript -e 'display notification \"Claude needs input\" with title \"Claude Code\" sound name \"Glass\"'; printf '\\a'"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",
