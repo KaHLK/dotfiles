@@ -2,7 +2,7 @@
 font-family = "Fira Code"
 font-style = Regular
 font-thicken = true
-font-size = 10
+font-size = 12
 
 # Theme
 theme = Xcode Dark hc
@@ -13,7 +13,7 @@ cursor-style = block
 
 # Window
 window-theme = ghostty
-window-decoration = none
+window-decoration = auto
 window-padding-x = 4,4
 window-padding-y = 4,1
 
@@ -22,6 +22,7 @@ quit-after-last-window-closed = true
 
 macos-titlebar-style = hidden
 macos-titlebar-proxy-icon = hidden
+macos-window-buttons = hidden
 gtk-toolbar-style = flat
 
 macos-icon = custom-style
