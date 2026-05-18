@@ -150,7 +150,7 @@
   },
   "enabledPlugins": {
     "caveman@caveman": true,
-    "typescript-lsp@claude-plugins-official": true
+    "typescript-lsp@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {
     "caveman": {
@@ -166,7 +166,10 @@
     "verbs": [
       "Working",
       "Processing",
-      "Generating"
+      "Generating",
+      "Honking",
+      "Hallucinating",
+      "Ughing"
     ]
   },
   "alwaysThinkingEnabled": true,
