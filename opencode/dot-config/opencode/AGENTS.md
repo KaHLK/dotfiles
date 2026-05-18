@@ -22,3 +22,12 @@ ALWAYS ASK permission before running tests
 Tsx files: EXPORTED component ALWAYS FIRST. Multiple exports? Sort by relevance to filename (ex. `Dropdown` in `Dropdown.tsx` first).
 
 I ALWAYS want to inspect code before a commit. ALWAYS ASK permission before commit
+
+# Commits
+
+> Project-local `CLAUDE.md` overrides these rules if it specifies different commit conventions.
+
+- **Atomic:** one logical change per commit. Tightly-coupled changes (a migration + the handler that depends on it) can ship together; unrelated polish does not.
+- **Header:** ≤ 60 chars, imperative mood. e.g. `add session device tracking`. No `chore:` / `feat:` / Conventional Commit prefixes unless the project adopts them.
+- **Body:** WHY + non-obvious decisions (constraint, trade-off, alternative considered). Don't restate the diff — the diff is the WHAT. Skip body entirely when the header is self-explanatory.
+- **Don't batch unrelated work into one commit just because they're staged together.** Split with `git add -p` or by reset + restage.
