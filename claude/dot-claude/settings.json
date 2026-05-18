@@ -28,6 +28,37 @@
       "Bash(bat *)",
       "Bash(eza *)",
       "Bash(tee ~/.llm-output/**)"
+    ],
+    "ask": [
+      "Bash(git commit)",
+      "Bash(git commit *)",
+      "Bash(git push)",
+      "Bash(git push *)",
+      "Bash(gh pr create*)",
+      "Bash(gh pr merge*)",
+      "Bash(gh pr close*)",
+      "Bash(gh pr edit*)",
+      "Bash(gh pr ready*)",
+      "Bash(gh pr reopen*)",
+      "Bash(gh pr comment*)",
+      "Bash(gh pr review*)",
+      "Bash(bun test*)",
+      "Bash(bun run test*)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push --force-with-lease*)",
+      "Bash(rm)",
+      "Bash(rm *)",
+      "Bash(git commit --no-verify*)",
+      "Bash(git push --no-verify*)",
+      "Bash(git commit * --no-verify*)",
+      "Bash(git push * --no-verify*)",
+      "Bash(jest*)",
+      "Bash(vitest*)",
+      "Bash(npx jest*)",
+      "Bash(npx vitest*)"
     ]
   },
   "hooks": {
