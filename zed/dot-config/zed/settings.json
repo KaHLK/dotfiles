@@ -212,6 +212,9 @@
         },
         "Markdown": {
             "language_servers": ["!oxfmt", "..."]
+        },
+        "CSharp": {
+            "language_servers": ["omnisharp", "!roslyn", "..."]
         }
     },
     "file_types": {
