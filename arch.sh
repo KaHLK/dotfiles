@@ -27,6 +27,8 @@ install fd
 install fzf
 install dust
 install jq
+install just
+install lefthook
 install lf
 install neovim nvim
 install scc
