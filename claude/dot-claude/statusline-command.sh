@@ -154,8 +154,10 @@ right_plain=$(strip_ansi "$right")
 left_len=${#left_plain}
 right_len=${#right_plain}
 
-# Get terminal width (read from /dev/tty since stdin is piped)
-cols=$(stty size < /dev/tty 2>/dev/null | awk '{print $2}')
+# Get terminal width — Claude Code passes COLUMNS/LINES env vars (v2.1.153+);
+# fall back to /dev/tty since stdin is piped
+cols="$COLUMNS"
+[ -z "$cols" ] && cols=$(stty size < /dev/tty 2>/dev/null | awk '{print $2}')
 [ -z "$cols" ] && cols=$(tput cols 2>/dev/null || echo 80)
 padding=$((cols - left_len - right_len - 5))
 [ "$padding" -lt 1 ] && padding=1
