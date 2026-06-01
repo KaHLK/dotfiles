@@ -175,7 +175,10 @@
   },
   "alwaysThinkingEnabled": true,
   "effortLevel": "xhigh",
+  "autoMemoryEnabled": true,
+  "autoDreamEnabled": true,
   "showThinkingSummaries": true,
   "editorMode": "vim",
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "skipWorkflowUsageWarning": true
 }
