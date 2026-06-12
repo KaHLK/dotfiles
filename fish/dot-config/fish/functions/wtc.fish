@@ -68,7 +68,9 @@ function wtc --description 'Create a git worktree and open it in a tmux window w
 
     # Symlink .env for stack (Pluto-Technology) worktrees
     set -l remote_url (git remote get-url origin 2>/dev/null)
+    set -l setup_cmd
     if string match -q '*Pluto-Technology*' -- $remote_url
+        set setup_cmd "cd js && make setup; exec $SHELL"
         ln -s .claude $abs_dir/.opencode
         # Symlink shared Claude local settings into the new worktree's .claude/
         if test -f $parent_dir/settings.local.json -a -d $abs_dir/.claude -a ! -e $abs_dir/.claude/settings.local.json
@@ -83,5 +85,5 @@ function wtc --description 'Create a git worktree and open it in a tmux window w
         end
     end
 
-    _wt $abs_dir
+    _wt $abs_dir $setup_cmd
 end
