@@ -10,10 +10,23 @@ mkdirSync(DIR, { recursive: true });
 export const DB_PATH = join(DIR, "usage.db");
 export const ERR_LOG = join(DIR, "errors.log");
 
+export function logError(where: string, err: unknown): void {
+  const msg = err instanceof Error ? (err.stack ?? err.message) : String(err);
+  try {
+    appendFileSync(ERR_LOG, `${new Date().toISOString()} [${where}] ${msg}\n`);
+  } catch {}
+}
+
 export const db = new Database(DB_PATH);
-db.exec("PRAGMA journal_mode = WAL");
-db.exec("PRAGMA synchronous = NORMAL");
-db.exec(`
+// Every hook event + the statusline opens this DB in its own process; without a
+// busy timeout, concurrent access (or post-crash WAL recovery) fails instantly
+// with SQLITE_BUSY. Set it before any statement that takes a lock so the WAL
+// pragma, schema setup, and all inserts wait out contention instead of throwing.
+db.exec("PRAGMA busy_timeout = 5000");
+try {
+  db.exec("PRAGMA journal_mode = WAL");
+  db.exec("PRAGMA synchronous = NORMAL");
+  db.exec(`
   CREATE TABLE IF NOT EXISTS usage_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,
@@ -91,10 +104,6 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_se_ts ON session_events(ts);
 `);
-
-export function logError(where: string, err: unknown): void {
-  const msg = err instanceof Error ? (err.stack ?? err.message) : String(err);
-  try {
-    appendFileSync(ERR_LOG, `${new Date().toISOString()} [${where}] ${msg}\n`);
-  } catch {}
+} catch (e) {
+  logError("db-init", e);
 }
