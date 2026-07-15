@@ -70,14 +70,14 @@ function wtc --description 'Create a git worktree and open it in a tmux window w
     set -l remote_url (git remote get-url origin 2>/dev/null)
     set -l setup_cmd
     if string match -q '*Pluto-Technology*' -- $remote_url
-        set setup_cmd "cd js && make setup; exec $SHELL"
+        set setup_cmd "cd js && make setup-local; exec $SHELL"
         ln -s .claude $abs_dir/.opencode
         # Symlink shared Claude local settings into the new worktree's .claude/
         if test -f $parent_dir/settings.local.json -a -d $abs_dir/.claude -a ! -e $abs_dir/.claude/settings.local.json
             ln -s ../../settings.local.json $abs_dir/.claude/settings.local.json
             echo "Symlinked .claude/settings.local.json"
         end
-        for app_dir in js/apps/webapp js/apps/plutowork js/apps/e2e
+        for app_dir in js/apps/webapp js/apps/plutowork js/apps/e2e 
             if test -d $abs_dir/$app_dir
                 ln -s ../../../../.env $abs_dir/$app_dir/.env
                 echo "Symlinked .env in $app_dir"
