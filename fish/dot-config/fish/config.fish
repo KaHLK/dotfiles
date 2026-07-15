@@ -74,6 +74,8 @@ fish_add_path ~/.cargo/bin
 fish_add_path /opt/local/bin
 fish_add_path /opt/local/sbin
 fish_add_path $BUN_INSTALL/bin
+fish_add_path ~/.dotnet/tools
+fish_add_path ~/go/bin
 export PATH="$HOME/.local/bin:$PATH"
 
 zoxide init fish | source
