@@ -137,7 +137,9 @@
         },
         "JavaScript": {
             "language_servers": [
-                "vtsls",
+                "typescript-ls",
+                "!vtsls",
+                "!typescript-language-server",
                 "!eslint",
                 "!tailwindcss-language-server",
                 "..."
@@ -154,7 +156,9 @@
         },
         "TypeScript": {
             "language_servers": [
-                "vtsls",
+                "typescript-ls",
+                "!vtsls",
+                "!typescript-language-server",
                 "!eslint",
                 "!tailwindcss-language-server",
                 "..."
@@ -171,7 +175,9 @@
         },
         "TSX": {
             "language_servers": [
-                "vtsls",
+                "typescript-ls",
+                "!vtsls",
+                "!typescript-language-server",
                 "!eslint",
                 "!tailwindcss-language-server",
                 "..."
