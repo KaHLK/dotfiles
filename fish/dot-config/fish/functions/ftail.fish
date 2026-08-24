@@ -38,12 +38,15 @@ function ftail --description "fzf-pick a file under a root (newest first) and fo
     set -l query ""
     test (count $argv) -gt 0; and set query (string join ' ' -- $argv)
 
-    # preview is deliberately metadata-only (size + mtime); birth time is not portable
+    # preview is metadata-only: created, modified, size. BSD stat (macOS) first,
+    # GNU stat as fallback -- its %w prints "-" when the fs has no birth time
+    set -l stat_bsd "stat -f 'created  %SB%nmodified %Sm%nsize     %z bytes' -t '%Y-%m-%d %H:%M:%S' --"
+    set -l stat_gnu "stat -c 'created  %w\nmodified %y\nsize     %s bytes' --"
     set -l pick (printf '%s\n' $rel | fzf \
         --query "$query" \
         --select-1 --exit-0 \
         --prompt "tail> " \
-        --preview "ls -ld -- $prefix{}" \
+        --preview "$stat_bsd $prefix{} 2>/dev/null || $stat_gnu $prefix{}" \
         --preview-window 'down,3,wrap')
 
     if test -z "$pick"
