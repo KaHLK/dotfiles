@@ -151,7 +151,8 @@
   "enabledPlugins": {
     "caveman@caveman": true,
     "typescript-lsp@claude-plugins-official": false,
-    "rust-analyzer-lsp@claude-plugins-official": true
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "Notion@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "caveman": {
@@ -173,13 +174,17 @@
       "Oughing"
     ]
   },
+  "spellcheck": {
+    "enabled": true,
+    "language": "en_GB-ise"
+  },
   "alwaysThinkingEnabled": true,
-  "effortLevel": "xhigh",
+  "effortLevel": "high",
   "autoMemoryEnabled": true,
   "autoDreamEnabled": true,
   "showThinkingSummaries": true,
   "skipWorkflowUsageWarning": true,
   "editorMode": "vim",
   "skipAutoPermissionPrompt": true,
-  "model": "claude-opus-4-6[1m]"
+  "agentPushNotifEnabled": true
 }
