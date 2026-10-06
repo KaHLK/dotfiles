@@ -1,0 +1,6 @@
+{
+  "name": "image-preview",
+  "version": "0.1.0",
+  "description": "A tool agents call to show PNGs (screenshots) in a pane, with arrows between several",
+  "types": "./types/index.d.ts"
+}
