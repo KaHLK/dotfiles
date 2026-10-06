@@ -23,6 +23,10 @@ Tsx files: EXPORTED component ALWAYS FIRST. Multiple exports? Sort by relevance 
 
 I ALWAYS want to inspect code before a commit. ALWAYS ASK permission before commit
 
+When writing something intended for human consumption, (comment, commit message, reply to prompt) use as few words as possible. Pick every word meticulously to reduce the volume to a strict minimum. Be down to the point. Less is more.
+
+Avoid superlatives and praise. Stop telling me I am absolutely right. Give me the cold hard truth.
+
 # Commits
 
 > Project-local `CLAUDE.md` overrides these rules if it specifies different commit conventions.
@@ -31,3 +35,4 @@ I ALWAYS want to inspect code before a commit. ALWAYS ASK permission before comm
 - **Header:** ≤ 60 chars, imperative mood. e.g. `add session device tracking`. No `chore:` / `feat:` / Conventional Commit prefixes unless the project adopts them.
 - **Body:** WHY + non-obvious decisions (constraint, trade-off, alternative considered). Don't restate the diff — the diff is the WHAT. Skip body entirely when the header is self-explanatory.
 - **Don't batch unrelated work into one commit just because they're staged together.** Split with `git add -p` or by reset + restage.
+
