@@ -2,18 +2,11 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On, TurnStepInput } from 'claude-code'
 
-const BAND_PROPS = {
-  hasSurvey: false,
-  isWorking: false,
-  maxRows: 5,
-  bodyColumns: 80,
-  scroll: { offset: 0, bodyRows: 5 },
-  view: {},
-}
+const FOOTER_PROPS = { modes: [] as string[] }
 
 const NOW = Date.parse('2026-10-06T12:00:00Z')
 
-test('band shows context bar, 5h with countdown and 7d, colored by threshold', async ($, on) => {
+test('footer shows context bar, 5h with countdown and 7d, colored by threshold', async ($, on) => {
   mock.clock(on, { now: NOW })
   on('ui.render', ($, e) => {
     const { Box } = $.ui.resolve(e)
@@ -31,7 +24,7 @@ test('band shows context bar, 5h with countdown and 7d, colored by threshold', a
     changed: ['context', 'rateLimits'],
   })
 
-  const ui = await $.ui.mount({ plugin: 'usage-bar', surface: 'terminal', component: 'AbovePrompt', props: BAND_PROPS })
+  const ui = await $.ui.mount({ plugin: 'usage-bar', surface: 'terminal', component: 'SessionMode', props: FOOTER_PROPS })
   const ctx = await ui.find({ type: 'Text', text: /%$/ })
   const fiveHour = await ui.find({ type: 'Text', text: /^5h:/ })
   const sevenDay = await ui.find({ type: 'Text', text: /^7d:/ })
@@ -44,7 +37,7 @@ test('band shows context bar, 5h with countdown and 7d, colored by threshold', a
   expect(sevenDay?.props.color).toBe('error')
 })
 
-test('band shows the model alone before anything is measured', async ($, on) => {
+test('footer shows the model alone before anything is measured', async ($, on) => {
   mock.clock(on, { now: NOW })
   on('ui.render', ($, e) => {
     const { Box } = $.ui.resolve(e)
@@ -52,7 +45,7 @@ test('band shows the model alone before anything is measured', async ($, on) => 
   })
   on('session.model', () => ({ value: 'Opus 5.5' }))
 
-  const ui = await $.ui.mount({ plugin: 'usage-bar', surface: 'terminal', component: 'AbovePrompt', props: BAND_PROPS })
+  const ui = await $.ui.mount({ plugin: 'usage-bar', surface: 'terminal', component: 'SessionMode', props: FOOTER_PROPS })
 
   expect((await ui.find({ type: 'Text', text: 'Opus 5.5' })) !== undefined).toBe(true)
   expect(await ui.find({ type: 'Text', text: /%/ })).toBe(undefined)
@@ -64,7 +57,7 @@ for (const [id, shown] of [
   ['claude-opus-5-5[1m]', 'Opus 5.5 (1M context)'],
   ['some-custom-model', 'some-custom-model'],
 ] as const) {
-  test(`band shows model id ${id} as ${shown}`, async ($, on) => {
+  test(`footer shows model id ${id} as ${shown}`, async ($, on) => {
     mock.clock(on, { now: NOW })
     on('ui.render', ($, e) => {
       const { Box } = $.ui.resolve(e)
@@ -72,13 +65,13 @@ for (const [id, shown] of [
     })
     on('session.model', () => ({ value: id }))
 
-    const ui = await $.ui.mount({ plugin: 'usage-bar', surface: 'terminal', component: 'AbovePrompt', props: BAND_PROPS })
+    const ui = await $.ui.mount({ plugin: 'usage-bar', surface: 'terminal', component: 'SessionMode', props: FOOTER_PROPS })
 
     expect((await ui.find({ type: 'Text', text: shown })) !== undefined).toBe(true)
   })
 }
 
-const band = (on: On, model = 'claude-opus-5-5') => {
+const footer = (on: On, model = 'claude-opus-5-5') => {
   mock.clock(on, { now: NOW })
   mock.env(on, { HOME: '/Users/me' })
   on('ui.render', ($, e) => {
@@ -97,11 +90,11 @@ const step = (effort: TurnStepInput['effort'], agentId?: string): TurnStepInput 
   agentId,
 })
 
-const mountBand = ($: Engine) =>
-  $.ui.mount({ plugin: 'usage-bar', surface: 'terminal', component: 'AbovePrompt', props: BAND_PROPS })
+const mountFooter = ($: Engine) =>
+  $.ui.mount({ plugin: 'usage-bar', surface: 'terminal', component: 'SessionMode', props: FOOTER_PROPS })
 
 test('session start seeds effort from settings and caveman from its flag file', async ($, on) => {
-  band(on)
+  footer(on)
   const read: string[] = []
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.usage', () => ({ value: { startedAt: 0, context: { window: 200_000 }, rateLimits: [] } }))
@@ -112,7 +105,7 @@ test('session start seeds effort from settings and caveman from its flag file', 
   })
 
   await $.session.start({ cwd: '/Users/me/project', surface: 'terminal', isInteractive: true })
-  const ui = await mountBand($)
+  const ui = await mountFooter($)
 
   expect(read).toEqual(['/Users/me/.claude/.caveman-active'])
   expect((await ui.find({ type: 'Text', text: 'Opus 5.5 · high' })) !== undefined).toBe(true)
@@ -120,7 +113,7 @@ test('session start seeds effort from settings and caveman from its flag file', 
 })
 
 test('main-thread step sets effort, a subagent step leaves it', async ($, on) => {
-  band(on)
+  footer(on)
   on('turn.step', async function* ($, e) {
     return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null }
   })
@@ -129,22 +122,22 @@ test('main-thread step sets effort, a subagent step leaves it', async ($, on) =>
   }
   for await (const _ of $.turn.step(step('low', 'agent-1'))) {
   }
-  const ui = await mountBand($)
+  const ui = await mountFooter($)
 
   expect((await ui.find({ type: 'Text', text: 'Opus 5.5 · max' })) !== undefined).toBe(true)
 })
 
 test('model shows without effort when none is known', async ($, on) => {
-  band(on)
+  footer(on)
 
-  const ui = await mountBand($)
+  const ui = await mountFooter($)
 
   expect((await ui.find({ type: 'Text', text: 'Opus 5.5' })) !== undefined).toBe(true)
   expect(await ui.find({ type: 'Text', text: /·/ })).toBe(undefined)
 })
 
 test('caveman label follows the flag file across prompts', async ($, on) => {
-  band(on)
+  footer(on)
   let flag: string | null = null
   on('fs.read', () => {
     if (flag === null) throw new Error('ENOENT')
@@ -154,17 +147,31 @@ test('caveman label follows the flag file across prompts', async ($, on) => {
   const submit = () => $.prompt.submit({ text: 'hi', wait: false, origin: { kind: 'composer' } })
 
   await submit()
-  expect(await (await mountBand($)).find({ type: 'Text', text: /CAVEMAN/ })).toBe(undefined)
+  expect(await (await mountFooter($)).find({ type: 'Text', text: /CAVEMAN/ })).toBe(undefined)
 
   flag = 'full'
   await submit()
-  expect((await (await mountBand($)).find({ type: 'Text', text: '[CAVEMAN]' })) !== undefined).toBe(true)
+  expect((await (await mountFooter($)).find({ type: 'Text', text: '[CAVEMAN]' })) !== undefined).toBe(true)
 
   flag = 'lite'
   await submit()
-  expect((await (await mountBand($)).find({ type: 'Text', text: '[CAVEMAN:LITE]' })) !== undefined).toBe(true)
+  expect((await (await mountFooter($)).find({ type: 'Text', text: '[CAVEMAN:LITE]' })) !== undefined).toBe(true)
 
   flag = null
   await submit()
-  expect(await (await mountBand($)).find({ type: 'Text', text: /CAVEMAN/ })).toBe(undefined)
+  expect(await (await mountFooter($)).find({ type: 'Text', text: /CAVEMAN/ })).toBe(undefined)
+})
+
+test('footer keeps the engine mode labels beside its own', async ($, on) => {
+  mock.clock(on, { now: NOW })
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text dimColor>focus & memory paused</Text>
+  })
+  on('session.model', () => ({ value: 'claude-opus-5-5' }))
+
+  const ui = await mountFooter($)
+
+  expect((await ui.find({ type: 'Text', text: 'focus & memory paused' })) !== undefined).toBe(true)
+  expect((await ui.find({ type: 'Text', text: 'Opus 5.5' })) !== undefined).toBe(true)
 })

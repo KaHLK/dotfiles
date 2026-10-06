@@ -41,75 +41,86 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) return next(e)
-
+  // Right end of the footer row; the engine's mode labels stay, ours follow
+  on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
     const { Box, Text } = $.ui.resolve(e)
-    const current = (await read($, snapshot)) ?? {}
-    const currentEffort = await read($, effort)
-    const currentCaveman = await read($, caveman)
-    const model = displayName(await $.session.model())
-    const now = await $.clock.now()
-
-    const left: JSX.Element[] = []
-    const right: JSX.Element[] = []
-
-    if (currentCaveman !== null) {
-      left.push(
-        <Text key="caveman" color={CAVEMAN_COLOR}>
-          {cavemanLabel(currentCaveman)}
-        </Text>,
-      )
-    }
-
-    left.push(
-      <Text key="model" dimColor>
-        {currentEffort === null ? model : `${model} · ${currentEffort}`}
-      </Text>,
-    )
-
-    if (current.contextPct !== undefined) {
-      const pct = Math.floor(current.contextPct)
-      right.push(
-        <Text key="ctx" {...tone(pct)}>
-          {bar(pct)} {pct}%
-        </Text>,
-      )
-    }
-
-    for (const [key, label, limit] of [
-      ['5h', '5h', current.fiveHour],
-      ['7d', '7d', current.sevenDay],
-    ] as const) {
-      if (limit === undefined) continue
-
-      const pct = Math.round(limit.pct)
-      const remaining = key === '5h' ? countdown(limit.resetsAt, now) : undefined
-      right.push(
-        <Text key={key} {...tone(pct)}>
-          {label}: {pct}%{remaining === undefined ? '' : ` (${remaining})`}
-        </Text>,
-      )
-    }
+    const segments = await segmentsOf($)
+    const engine = await next(e)
 
     return (
-      <Box width="100%" justifyContent="space-between">
-        <Box gap={1}>{left}</Box>
+      <Box gap={2}>
+        {engine}
         <Box>
-          {right.flatMap((segment, i) =>
-            i === 0
-              ? [segment]
+          {segments.flatMap(segment => [
+            ...(segment.sep === ''
+              ? []
               : [
-                  <Text key={`sep${i}`} dimColor>
-                    {' | '}
+                  <Text key={`${segment.key}-sep`} dimColor>
+                    {segment.sep}
                   </Text>,
-                  segment,
-                ],
-          )}
+                ]),
+            <Text key={segment.key} {...segment.style}>
+              {segment.text}
+            </Text>,
+          ])}
         </Box>
       </Box>
     )
   })
+}
+
+type Segment = {
+  key: string
+  text: string
+  sep: string
+  style: { color?: string; dimColor?: boolean }
+}
+
+const segmentsOf = async ($: EngineInterface): Promise<Segment[]> => {
+  const current = (await read($, snapshot)) ?? {}
+  const currentEffort = await read($, effort)
+  const currentCaveman = await read($, caveman)
+  const model = displayName(await $.session.model())
+  const now = await $.clock.now()
+  const segments: Segment[] = []
+
+  if (currentCaveman !== null) {
+    segments.push({ key: 'caveman', text: cavemanLabel(currentCaveman), sep: '', style: { color: CAVEMAN_COLOR } })
+  }
+
+  segments.push({
+    key: 'model',
+    text: currentEffort === null ? model : `${model} · ${currentEffort}`,
+    sep: segments.length === 0 ? '' : ' ',
+    style: { dimColor: true },
+  })
+
+  let usageSep = '  '
+
+  if (current.contextPct !== undefined) {
+    const pct = Math.floor(current.contextPct)
+    segments.push({ key: 'ctx', text: `${bar(pct)} ${pct}%`, sep: usageSep, style: tone(pct) })
+    usageSep = ' | '
+  }
+
+  for (const [key, limit] of [
+    ['5h', current.fiveHour],
+    ['7d', current.sevenDay],
+  ] as const) {
+    if (limit === undefined) continue
+
+    const pct = Math.round(limit.pct)
+    const remaining = key === '5h' ? countdown(limit.resetsAt, now) : undefined
+    segments.push({
+      key,
+      text: `${key}: ${pct}%${remaining === undefined ? '' : ` (${remaining})`}`,
+      sep: usageSep,
+      style: tone(pct),
+    })
+    usageSep = ' | '
+  }
+
+  return segments
 }
 
 const BAR_WIDTH = 10
@@ -168,8 +179,8 @@ const limitOf = (rateLimits: SessionRateLimit[], kind: string): Limit | undefine
 }
 
 // Same thresholds as the old status line: red ≥80, yellow ≥60, dim otherwise
-const tone = (pct: number) =>
-  pct >= 80 ? { color: 'error' as const } : pct >= 60 ? { color: 'warning' as const } : { dimColor: true }
+const tone = (pct: number): Segment['style'] =>
+  pct >= 80 ? { color: 'error' } : pct >= 60 ? { color: 'warning' } : { dimColor: true }
 
 const bar = (pct: number) => {
   const filled = Math.max(0, Math.min(BAR_WIDTH, Math.floor((pct * BAR_WIDTH) / 100)))
