@@ -152,7 +152,8 @@
     "caveman@caveman": true,
     "typescript-lsp@claude-plugins-official": false,
     "rust-analyzer-lsp@claude-plugins-official": true,
-    "Notion@claude-plugins-official": true
+    "Notion@claude-plugins-official": true,
+    "cc-plugin-you-should-know@builtin": true
   },
   "extraKnownMarketplaces": {
     "caveman": {
@@ -162,6 +163,7 @@
       }
     }
   },
+  "feedbackDrafts": "off",
   "spinnerTipsEnabled": false,
   "spinnerVerbs": {
     "mode": "replace",
@@ -185,6 +187,8 @@
   "showThinkingSummaries": true,
   "skipWorkflowUsageWarning": true,
   "editorMode": "vim",
-  "skipAutoPermissionPrompt": true,
-  "agentPushNotifEnabled": true
+  "autoCompactEnabled": false,
+  "remoteControlAtStartup": false,
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true
 }
