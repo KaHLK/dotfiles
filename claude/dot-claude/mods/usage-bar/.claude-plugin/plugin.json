@@ -1,0 +1,6 @@
+{
+  "name": "usage-bar",
+  "version": "0.1.0",
+  "description": "Context fill, 5h and weekly rate-limit usage in a band above the prompt",
+  "types": "./types/index.d.ts"
+}

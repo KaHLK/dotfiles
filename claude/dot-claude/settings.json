@@ -3,7 +3,7 @@
     "DISABLE_AUTOUPDATER": "1",
     "CLAUDE_CODE_ENABLE_TELEMETRY": "0",
     "CLAUDE_CODE_NO_FLICKER": "1",
-    "CLAUDE_CODE_PLUGIN_DIRS": "~/.claude/mods/test-lock"
+    "CLAUDE_CODE_PLUGIN_DIRS": "~/.claude/mods/test-lock:~/.claude/mods/usage-bar"
   },
   "permissions": {
     "allow": [
