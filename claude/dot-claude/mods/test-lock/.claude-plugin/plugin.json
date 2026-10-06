@@ -1,0 +1,6 @@
+{
+  "name": "test-lock",
+  "version": "0.1.0",
+  "description": "Serializes test runs across every Claude Code session on this machine, and blocks builds while tests run",
+  "types": "./types/index.d.ts"
+}
