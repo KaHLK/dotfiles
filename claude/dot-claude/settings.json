@@ -28,7 +28,8 @@
       "Bash(tail *)",
       "Bash(bat *)",
       "Bash(eza *)",
-      "Bash(tee ~/.llm-output/**)"
+      "Bash(tee ~/.llm-output/**)",
+      "mcp__image-preview__show_images"
     ],
     "deny": [
       "Bash(git push --force*)",
