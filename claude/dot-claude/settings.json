@@ -57,9 +57,7 @@
       "Bash(gh pr ready*)",
       "Bash(gh pr reopen*)",
       "Bash(gh pr comment*)",
-      "Bash(gh pr review*)",
-      "Bash(bun test*)",
-      "Bash(bun run test*)"
+      "Bash(gh pr review*)"
     ]
   },
   "hooks": {
