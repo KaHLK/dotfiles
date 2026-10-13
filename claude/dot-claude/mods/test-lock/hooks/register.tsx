@@ -6,6 +6,12 @@ import type { Holder } from '../types'
 const LOCK_FD = 9
 const EX_TEMPFAIL = 75
 const POLL_MS = 5000
+// Waits run as blocking lock probes: a $ call's time is outside the hook's 10 s budget
+const WAIT_S = 5
+const MAX_WAITS = (20 * 60) / WAIT_S
+// Covers the gap between a probe seeing the lock free and the command taking it
+const TAKE_WAIT_S = 10
+const NO_WAIT = 'TEST_LOCK_NOWAIT=1'
 
 const START = String.raw`(^|[\s;&|(])`
 const TEST = new RegExp(
@@ -17,13 +23,19 @@ const BUILD = new RegExp(
     String.raw`(bunx?\s+tsc|npx\s+tsc|tsc|bun\s+run\s+(build|typecheck|tsc)|vite\s+build|dotnet\s+build|\./gradlew\b[^;&|]*\bassemble\w*)\b`,
 )
 
-type Locker = { take: (fd: number) => string; probe: (lock: string) => string[] }
+type Locker = { take: (fd: number) => string; probe: (lock: string, seconds?: number) => string[] }
 
 // flock is util-linux (every Linux); macOS ships only BSD lockf
 const lockerFor = (path: string): Locker =>
   path.endsWith('/flock')
-    ? { take: fd => `${path} -n ${fd}`, probe: lock => [path, '-n', lock, 'true'] }
-    : { take: fd => `${path} -s -t 0 ${fd}`, probe: lock => [path, '-k', '-s', '-t', '0', lock, 'true'] }
+    ? {
+        take: fd => `${path} -w ${TAKE_WAIT_S} ${fd}`,
+        probe: (lock, seconds = 0) => (seconds === 0 ? [path, '-n', lock, 'true'] : [path, '-w', String(seconds), lock, 'true']),
+      }
+    : {
+        take: fd => `${path} -s -t ${TAKE_WAIT_S} ${fd}`,
+        probe: (lock, seconds = 0) => [path, '-k', '-s', '-t', String(seconds), lock, 'true'],
+      }
 
 const holder = atom({ plugin: 'test-lock', key: 'holder' } as const, null)
 
@@ -33,7 +45,7 @@ export const isBuildCommand = (command: string) => BUILD.test(command) && !TEST.
 const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
 
 export const wrapCommand = (command: string, lock: string, locker: Locker) =>
-  `exec ${LOCK_FD}>>${quote(lock)} && ${locker.take(LOCK_FD)} || { echo "test-lock: tests are already running in another session" >&2; exit ${EX_TEMPFAIL}; }; { ${command}\n} ${LOCK_FD}>&-`
+  `exec ${LOCK_FD}>>${quote(lock)} && ${locker.take(LOCK_FD)} || { echo "test-lock: tests or a build already running in another session" >&2; exit ${EX_TEMPFAIL}; }; { ${command}\n} ${LOCK_FD}>&-`
 
 let found: Promise<Locker | null> | undefined
 
@@ -44,15 +56,30 @@ const findLocker = ($: EngineInterface) =>
 
 const lockPath = async ($: EngineInterface) => `${(await $.env.get('HOME')) ?? '/tmp'}/.cache/pluto-test.lock`
 
-const isHeld = async ($: EngineInterface, lock: string, locker: Locker) =>
-  (await $.process.run(locker.probe(lock))).exitCode !== 0
+const isHeld = async ($: EngineInterface, lock: string, locker: Locker, seconds = 0) =>
+  (await $.process.run(locker.probe(lock, seconds), { timeoutMs: (seconds + 5) * 1000 })).exitCode !== 0
+
+// Resolves how many probes it waited, or null when the lock stayed held or the call was interrupted
+const waitForLock = async ($: EngineInterface, lock: string, locker: Locker, current: Holder, signal: AbortSignal) => {
+  $.ui.status(`test-lock: waiting for ${describe(current)}`)
+  try {
+    for (let waits = 1; waits <= MAX_WAITS; waits++) {
+      if (signal.aborted) return null
+      if (!(await isHeld($, lock, locker, WAIT_S))) return waits
+    }
+    return null
+  } finally {
+    $.ui.status(undefined)
+  }
+}
 
 const readHolder = async ($: EngineInterface, lock: string): Promise<Holder> => {
   const sidecar = await $.fs.read(`${lock}.json`).catch(() => undefined)
   try {
-    return JSON.parse(String(sidecar)) as Holder
+    // Sidecars written before builds took the lock carry no kind
+    return { kind: 'tests', ...(JSON.parse(String(sidecar)) as Omit<Holder, 'kind'>) }
   } catch {
-    return { label: 'unknown session', command: 'unknown command', startedAt: 0 }
+    return { kind: 'tests', label: 'unknown session', command: 'unknown command', startedAt: 0 }
   }
 }
 
@@ -62,7 +89,7 @@ const refresh = async ($: EngineInterface, lock: string, locker: Locker) => {
   return current
 }
 
-const describe = (current: Holder) => `tests running in ${current.label}: ${current.command.slice(0, 60)}`
+const describe = (current: Holder) => `${current.kind} running in ${current.label}: ${current.command.slice(0, 60)}`
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -98,26 +125,41 @@ export const register: Register = on => {
     const lock = await lockPath($)
     const current = await refresh($, lock, locker)
 
-    if (current !== null) {
-      return {
-        deny: `test-lock: ${describe(current)}. Wait for that run to finish before running ${isTest ? 'tests' : 'a build or typecheck'}.`,
-      }
-    }
+    let waited = 0
 
-    if (isBuild) {
-      return next(e)
+    if (current !== null) {
+      const waits = e.command.includes(NO_WAIT) ? null : await waitForLock($, lock, locker, current, next.signal)
+
+      if (waits === null) {
+        return {
+          deny: `test-lock: ${describe(current)}. Wait for that run to finish before running ${isTest ? 'tests' : 'a build or typecheck'}.`,
+        }
+      }
+
+      waited = waits * WAIT_S
+      await refresh($, lock, locker)
     }
 
     const root = await $.session.root()
     const id = await $.session.id()
     const entry: Holder = {
+      kind: isTest ? 'tests' : 'build',
       label: `${root.split('/').at(-1)} (${id.slice(0, 8)})`,
       command: e.command,
       startedAt: await $.clock.now(),
     }
     await $.fs.write(`${lock}.json`, JSON.stringify(entry))
 
-    return next({ ...e, command: wrapCommand(e.command, lock, locker) })
+    const result = await next({ ...e, command: wrapCommand(e.command, lock, locker) })
+
+    if (waited === 0 || 'deny' in result) {
+      return result
+    }
+
+    // Read by the model alone: how to skip the wait next time
+    const note = `test-lock waited about ${Math.ceil(waited / 60)}m for another session's tests or build to finish before running this. Prefix a command with ${NO_WAIT} to be refused at once instead of waiting.`
+
+    return { ...result, context: [...(result.context ?? []), note] }
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
