@@ -161,6 +161,54 @@ test('TEST_LOCK_NOWAIT=1 is denied at once while the lock is held', async ($, on
   expect(called.deny ?? called.text).toContain('tests running in stack (abcd1234)')
 })
 
+for (const command of [
+  'cd backend && make clean && SQL_TESTS="sql/performance/benchmark_refresh_materialized_table.sql" make db_test',
+  'bun run bench',
+  'bunx vitest bench',
+  'cargo bench --bench parse',
+  'go test ./... -bench=. -run=^$',
+  'hyperfine "bun run build"',
+  'make bench-sql',
+]) {
+  test(`benchmark runs under the lock: ${command}`, async ($, on) => {
+    const { ran, written } = world(on, false)
+
+    await $.tool.call({ tool: 'Bash', command })
+
+    expect(ran[0]).toContain('/usr/local/bin/flock -w 10 9')
+    expect(JSON.parse(written[`${LOCK}.json`] ?? '{}')).toMatchObject({ kind: 'benchmark', command })
+  })
+}
+
+test('test command is denied, naming the benchmark, when a benchmark holds the lock past the wait', async ($, on) => {
+  const { ran } = world(on, true, '/usr/local/bin/flock', { ...HOLDER, kind: 'benchmark', command: 'cargo bench' })
+
+  const called = await $.tool.call({ tool: 'Bash', command: 'bun run test' })
+
+  expect(ran).toHaveLength(0)
+  expect(called.deny ?? called.text).toContain('benchmark running in stack (abcd1234)')
+})
+
+test('a test command that takes the lock itself is denied, so it cannot deadlock under the wrap', async ($, on) => {
+  const { ran } = world(on, false)
+
+  const called = await $.tool.call({
+    tool: 'Bash',
+    command: '/opt/local/bin/flock ~/.cache/pluto-test.lock true; bun run test --silent src/map',
+  })
+
+  expect(ran).toHaveLength(0)
+  expect(called.deny ?? called.text).toContain('test-lock already waits for the lock')
+})
+
+test('reading the lock file in an unrelated command runs unchanged', async ($, on) => {
+  const { ran } = world(on, true)
+
+  await $.tool.call({ tool: 'Bash', command: 'lsof ~/.cache/pluto-test.lock' })
+
+  expect(ran).toEqual(['lsof ~/.cache/pluto-test.lock'])
+})
+
 for (const isLocked of [true, false]) {
   test(`band ${isLocked ? 'shows' : 'hides'} the holder when the lock is ${isLocked ? 'held' : 'free'}`, async ($, on) => {
     world(on, isLocked)

@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Holder } from '../types'
+import type { Holder, Kind } from '../types'
 
 const LOCK_FD = 9
 const EX_TEMPFAIL = 75
@@ -17,6 +17,11 @@ const START = String.raw`(^|[\s;&|(])`
 const TEST = new RegExp(
   START +
     String.raw`(bun\s+(run\s+)?test|bunx?\s+(jest|vitest|playwright\s+test)|npx\s+(jest|vitest|playwright\s+test)|jest|vitest|playwright\s+test|dotnet\s+test|pg_prove|make\s+(test|e2e)|\./gradlew\b[^;&|]*\b(test\w*|connected\w*Test))\b`,
+)
+// `sql/performance/` is how stack's /perf names its pgtap benchmarks
+const BENCHMARK = new RegExp(
+  START +
+    String.raw`(bunx?\s+(run\s+)?bench\w*|(bunx?\s+|npx\s+)?vitest\s+bench|cargo\s+bench|go\s+test\b[^;&|]*\s-bench\b|hyperfine|make\s+[\w-]*bench[\w-]*)\b|sql/performance/`,
 )
 const BUILD = new RegExp(
   START +
@@ -39,13 +44,16 @@ const lockerFor = (path: string): Locker =>
 
 const holder = atom({ plugin: 'test-lock', key: 'holder' } as const, null)
 
-export const isTestCommand = (command: string) => TEST.test(command)
-export const isBuildCommand = (command: string) => BUILD.test(command) && !TEST.test(command)
+// Most specific first: `vitest bench` is a benchmark, `hyperfine "bun run build"` too
+export const kindOf = (command: string): Kind | null =>
+  BENCHMARK.test(command) ? 'benchmark' : TEST.test(command) ? 'tests' : BUILD.test(command) ? 'build' : null
+
+const RUNNING: Record<Kind, string> = { tests: 'tests', build: 'a build or typecheck', benchmark: 'a benchmark' }
 
 const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
 
 export const wrapCommand = (command: string, lock: string, locker: Locker) =>
-  `exec ${LOCK_FD}>>${quote(lock)} && ${locker.take(LOCK_FD)} || { echo "test-lock: tests or a build already running in another session" >&2; exit ${EX_TEMPFAIL}; }; { ${command}\n} ${LOCK_FD}>&-`
+  `exec ${LOCK_FD}>>${quote(lock)} && ${locker.take(LOCK_FD)} || { echo "test-lock: tests, a build or a benchmark already running in another session" >&2; exit ${EX_TEMPFAIL}; }; { ${command}\n} ${LOCK_FD}>&-`
 
 let found: Promise<Locker | null> | undefined
 
@@ -54,7 +62,9 @@ const findLocker = ($: EngineInterface) =>
     .run(['/bin/sh', '-c', 'command -v flock || command -v lockf'])
     .then(({ exitCode, stdout }) => (exitCode === 0 && stdout.trim() !== '' ? lockerFor(stdout.trim().split('\n')[0] ?? '') : null)))
 
-const lockPath = async ($: EngineInterface) => `${(await $.env.get('HOME')) ?? '/tmp'}/.cache/pluto-test.lock`
+const LOCK_NAME = 'pluto-test.lock'
+
+const lockPath = async ($: EngineInterface) => `${(await $.env.get('HOME')) ?? '/tmp'}/.cache/${LOCK_NAME}`
 
 const isHeld = async ($: EngineInterface, lock: string, locker: Locker, seconds = 0) =>
   (await $.process.run(locker.probe(lock, seconds), { timeoutMs: (seconds + 5) * 1000 })).exitCode !== 0
@@ -109,11 +119,17 @@ export const register: Register = on => {
   })
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    const isTest = isTestCommand(e.command)
-    const isBuild = isBuildCommand(e.command)
+    const kind = kindOf(e.command)
 
-    if ((!isTest && !isBuild) || e.command.includes(`exec ${LOCK_FD}>>`)) {
+    if (kind === null || e.command.includes(`exec ${LOCK_FD}>>`)) {
       return next(e)
+    }
+
+    // Its own flock/lockf would wait on the lock its wrapping shell holds: a deadlock
+    if (e.command.includes(LOCK_NAME)) {
+      return {
+        deny: `test-lock already waits for the lock before running ${RUNNING[kind]}. Run the command without your own flock/lockf on ${LOCK_NAME}.`,
+      }
     }
 
     const locker = await findLocker($)
@@ -132,7 +148,7 @@ export const register: Register = on => {
 
       if (waits === null) {
         return {
-          deny: `test-lock: ${describe(current)}. Wait for that run to finish before running ${isTest ? 'tests' : 'a build or typecheck'}.`,
+          deny: `test-lock: ${describe(current)}. Wait for that run to finish before running ${RUNNING[kind]}.`,
         }
       }
 
@@ -143,7 +159,7 @@ export const register: Register = on => {
     const root = await $.session.root()
     const id = await $.session.id()
     const entry: Holder = {
-      kind: isTest ? 'tests' : 'build',
+      kind,
       label: `${root.split('/').at(-1)} (${id.slice(0, 8)})`,
       command: e.command,
       startedAt: await $.clock.now(),
