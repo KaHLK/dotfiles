@@ -105,6 +105,48 @@ test('build runs under the lock when the lock is free', async ($, on) => {
   expect(JSON.parse(written[`${LOCK}.json`] ?? '{}')).toMatchObject({ kind: 'build', command: 'bunx tsc --noEmit' })
 })
 
+for (const [command, kind] of [
+  ['rustc -O src/main.rs', 'build'],
+  ['cargo build --release', 'build'],
+  ['cargo +nightly build', 'build'],
+  ['cargo b', 'build'],
+  ['cd crates/core && cargo check --all-targets', 'build'],
+  ['cargo clippy -- -D warnings', 'build'],
+  ['cargo test -p core', 'tests'],
+  ['cargo t', 'tests'],
+  ['cargo nextest run', 'tests'],
+] as const) {
+  test(`rust command runs under the lock as ${kind}: ${command}`, async ($, on) => {
+    const { ran, written } = world(on, false)
+
+    await $.tool.call({ tool: 'Bash', command })
+
+    expect(ran[0]).toContain('/usr/local/bin/flock -w 10 9')
+    expect(JSON.parse(written[`${LOCK}.json`] ?? '{}')).toMatchObject({ kind, command })
+  })
+}
+
+for (const command of ['cargo run --bin cli', 'cargo r']) {
+  test(`${command} before any cargo build in the session is denied, asking for a build first`, async ($, on) => {
+    const { ran } = world(on, false)
+
+    const called = await $.tool.call({ tool: 'Bash', command })
+
+    expect(ran).toHaveLength(0)
+    expect(called.deny ?? called.text).toContain('cargo build')
+  })
+}
+
+test('cargo run after a cargo build runs unchanged, outside the lock', async ($, on) => {
+  const { ran } = world(on, false)
+
+  await $.tool.call({ tool: 'Bash', command: 'cargo build --bin cli' })
+  await $.tool.call({ tool: 'Bash', command: 'cargo run --bin cli' })
+
+  expect(ran).toHaveLength(2)
+  expect(ran[1]).toBe('cargo run --bin cli')
+})
+
 test('test command is denied, naming the build, when a build holds the lock past the wait', async ($, on) => {
   const { ran } = world(on, true, '/usr/local/bin/flock', { ...HOLDER, kind: 'build', command: 'bun run build' })
 

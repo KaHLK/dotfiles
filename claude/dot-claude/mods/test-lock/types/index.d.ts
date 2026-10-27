@@ -3,6 +3,6 @@ export type Holder = { kind: Kind; label: string; command: string; startedAt: nu
 
 declare module 'claude-code' {
   interface PluginState {
-    'test-lock': { holder: Holder | null }
+    'test-lock': { holder: Holder | null; cargoBuilt: boolean }
   }
 }

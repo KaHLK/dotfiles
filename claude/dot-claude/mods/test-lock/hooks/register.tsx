@@ -14,9 +14,10 @@ const TAKE_WAIT_S = 10
 const NO_WAIT = 'TEST_LOCK_NOWAIT=1'
 
 const START = String.raw`(^|[\s;&|(])`
+const CARGO = String.raw`cargo\s+(\+\S+\s+)?`
 const TEST = new RegExp(
   START +
-    String.raw`(bun\s+(run\s+)?test|bunx?\s+(jest|vitest|playwright\s+test)|npx\s+(jest|vitest|playwright\s+test)|jest|vitest|playwright\s+test|dotnet\s+test|pg_prove|make\s+(test|e2e)|\./gradlew\b[^;&|]*\b(test\w*|connected\w*Test))\b`,
+    String.raw`(bun\s+(run\s+)?test|bunx?\s+(jest|vitest|playwright\s+test)|npx\s+(jest|vitest|playwright\s+test)|jest|vitest|playwright\s+test|dotnet\s+test|pg_prove|make\s+(test|e2e)|\./gradlew\b[^;&|]*\b(test\w*|connected\w*Test)|${CARGO}(test|t|nextest\s+run))\b`,
 )
 // `sql/performance/` is how stack's /perf names its pgtap benchmarks
 const BENCHMARK = new RegExp(
@@ -25,8 +26,11 @@ const BENCHMARK = new RegExp(
 )
 const BUILD = new RegExp(
   START +
-    String.raw`(bunx?\s+tsc|npx\s+tsc|tsc|bun\s+run\s+(build|typecheck|tsc)|vite\s+build|dotnet\s+build|\./gradlew\b[^;&|]*\bassemble\w*)\b`,
+    String.raw`(bunx?\s+tsc|npx\s+tsc|tsc|bun\s+run\s+(build|typecheck|tsc)|vite\s+build|dotnet\s+build|\./gradlew\b[^;&|]*\bassemble\w*|rustc|${CARGO}(build|b|check|c|clippy))\b`,
 )
+// A server started by `cargo run` would hold the lock as long as it lives: compile under the lock, run outside it
+const CARGO_BUILD = new RegExp(START + CARGO + String.raw`(build|b)\b`)
+const CARGO_RUN = new RegExp(START + CARGO + String.raw`(run|r)\b`)
 
 type Locker = { take: (fd: number) => string; probe: (lock: string, seconds?: number) => string[] }
 
@@ -43,6 +47,7 @@ const lockerFor = (path: string): Locker =>
       }
 
 const holder = atom({ plugin: 'test-lock', key: 'holder' } as const, null)
+const cargoBuilt = atom({ plugin: 'test-lock', key: 'cargoBuilt' } as const, false)
 
 // Most specific first: `vitest bench` is a benchmark, `hyperfine "bun run build"` too
 export const kindOf = (command: string): Kind | null =>
@@ -121,12 +126,12 @@ export const register: Register = on => {
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const kind = kindOf(e.command)
 
-    if (kind === null || e.command.includes(`exec ${LOCK_FD}>>`)) {
+    if ((kind === null && !CARGO_RUN.test(e.command)) || e.command.includes(`exec ${LOCK_FD}>>`)) {
       return next(e)
     }
 
     // Its own flock/lockf would wait on the lock its wrapping shell holds: a deadlock
-    if (e.command.includes(LOCK_NAME)) {
+    if (kind !== null && e.command.includes(LOCK_NAME)) {
       return {
         deny: `test-lock already waits for the lock before running ${RUNNING[kind]}. Run the command without your own flock/lockf on ${LOCK_NAME}.`,
       }
@@ -136,6 +141,12 @@ export const register: Register = on => {
 
     if (locker === null) {
       return next(e)
+    }
+
+    if (kind === null) {
+      return (await read($, cargoBuilt))
+        ? next(e)
+        : { deny: 'test-lock: run `cargo build` with the same flags first, so compiling waits for the lock, then `cargo run`.' }
     }
 
     const lock = await lockPath($)
@@ -167,6 +178,10 @@ export const register: Register = on => {
     await $.fs.write(`${lock}.json`, JSON.stringify(entry))
 
     const result = await next({ ...e, command: wrapCommand(e.command, lock, locker) })
+
+    if (CARGO_BUILD.test(e.command) && !('deny' in result)) {
+      await update($, cargoBuilt, () => true)
+    }
 
     if (waited === 0 || 'deny' in result) {
       return result
