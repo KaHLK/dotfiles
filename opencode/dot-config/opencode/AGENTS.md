@@ -11,6 +11,7 @@ Available
 * `jq`
 
 # General approach
+ALWAYS use the `Edit` tool to edit files. You're ONLY allowed to use `sed` or `python` when a VERY repetitive edit is to be made. 
 ALWAYS tee + head/tail output: `some command | tee ~/.llm-output/some-path | tail -n 10`. Max `-n` 50. Not enough? Re-read tee'd file with offset (`bat ~/.llm-output/some-path | tail -n 100 | head -n 50`).
 
 Temp output save in `~/.llm-output`, subdir named after repo/branch (whichever easiest to find again).
