@@ -20,3 +20,6 @@ fi
 source ~/.local/share/omarchy/default/bash/rc
 
 . "$HOME/.cargo/env"
+
+# Vite+ bin (https://viteplus.dev)
+. "/Users/kahlk/.vite-plus/env"
