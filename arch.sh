@@ -30,6 +30,7 @@ install jq
 install just
 install lefthook
 install lf
+install mold
 install neovim nvim
 install scc
 install scrcpy
