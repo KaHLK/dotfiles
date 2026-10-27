@@ -243,6 +243,38 @@ test('a test command that takes the lock itself is denied, so it cannot deadlock
   expect(called.deny ?? called.text).toContain('test-lock already waits for the lock')
 })
 
+for (const command of [
+  "git commit -q -F - <<'EOF'\nlock rust builds\n\ncargo run stays unlocked; cargo build first\nEOF\ngit log --oneline -1",
+  'git commit -m "run cargo test; then bun run test"',
+  'command -v rustc',
+  "rg -n 'cargo build' README.md",
+  'rustc --version',
+]) {
+  test(`command that only mentions a locked command runs unchanged while the lock is held: ${command}`, async ($, on) => {
+    const { ran } = world(on, true)
+
+    await $.tool.call({ tool: 'Bash', command })
+
+    expect(ran).toEqual([command])
+  })
+}
+
+for (const command of [
+  'bash -lc "cargo test"',
+  'RUST_LOG=debug cargo test',
+  'time cargo build --release',
+  'for p in a b; do cargo test -p $p; done',
+  'cat <<EOF > notes.txt\nhi\nEOF\ncargo build',
+]) {
+  test(`command in shell syntax still runs under the lock: ${command}`, async ($, on) => {
+    const { ran } = world(on, false)
+
+    await $.tool.call({ tool: 'Bash', command })
+
+    expect(ran[0]).toContain('/usr/local/bin/flock -w 10 9')
+  })
+}
+
 test('reading the lock file in an unrelated command runs unchanged', async ($, on) => {
   const { ran } = world(on, true)
 

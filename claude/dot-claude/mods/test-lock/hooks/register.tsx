@@ -13,7 +13,8 @@ const MAX_WAITS = (20 * 60) / WAIT_S
 const TAKE_WAIT_S = 10
 const NO_WAIT = 'TEST_LOCK_NOWAIT=1'
 
-const START = String.raw`(^|[\s;&|(])`
+// Command position: after a separator, then env assignments and wrappers like `time`
+const START = String.raw`(^|[\n;&|({]|\$\()\s*(\w+=\S*\s+|(time|env|nohup|nice|timeout\s+\S+|do|then|else)\s+)*`
 const CARGO = String.raw`cargo\s+(\+\S+\s+)?`
 const TEST = new RegExp(
   START +
@@ -22,15 +23,25 @@ const TEST = new RegExp(
 // `sql/performance/` is how stack's /perf names its pgtap benchmarks
 const BENCHMARK = new RegExp(
   START +
-    String.raw`(bunx?\s+(run\s+)?bench\w*|(bunx?\s+|npx\s+)?vitest\s+bench|cargo\s+bench|go\s+test\b[^;&|]*\s-bench\b|hyperfine|make\s+[\w-]*bench[\w-]*)\b|sql/performance/`,
+    String.raw`(bunx?\s+(run\s+)?bench\w*|(bunx?\s+|npx\s+)?vitest\s+bench|cargo\s+bench|go\s+test\b[^;&|]*\s-bench\b|hyperfine|make\s+[\w-]*bench[\w-]*)\b`,
 )
+// Usually passed in a quoted env var, so matched on the raw command
+const PGTAP_BENCHMARK = /sql\/performance\//
 const BUILD = new RegExp(
   START +
-    String.raw`(bunx?\s+tsc|npx\s+tsc|tsc|bun\s+run\s+(build|typecheck|tsc)|vite\s+build|dotnet\s+build|\./gradlew\b[^;&|]*\bassemble\w*|rustc|${CARGO}(build|b|check|c|clippy))\b`,
+    String.raw`(bunx?\s+tsc|npx\s+tsc|tsc|bun\s+run\s+(build|typecheck|tsc)|vite\s+build|dotnet\s+build|\./gradlew\b[^;&|]*\bassemble\w*|rustc(?!\s+(-V|-vV|--version|--print)\b)|${CARGO}(build|b|check|c|clippy))\b`,
 )
 // A server started by `cargo run` would hold the lock as long as it lives: compile under the lock, run outside it
 const CARGO_BUILD = new RegExp(START + CARGO + String.raw`(build|b)\b`)
 const CARGO_RUN = new RegExp(START + CARGO + String.raw`(run|r)\b`)
+
+// Heredoc bodies and quoted args (commit messages, search patterns) are text, not commands; `sh -c` bodies are commands
+const HEREDOC = /<<-?\s*(["']?)(\w+)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g
+const SHELL_C = /\b(ba|z|fi|da)?sh\s+(-\w+\s+)*-\w*c\s+(["'])([\s\S]*?)\3/g
+const QUOTED = /"(?:\\.|[^"\\])*"|'[^']*'/g
+
+const commandWords = (command: string) =>
+  command.replace(HEREDOC, '<<$2$3').replace(SHELL_C, '; $4 ;').replace(QUOTED, '""')
 
 type Locker = { take: (fd: number) => string; probe: (lock: string, seconds?: number) => string[] }
 
@@ -50,8 +61,17 @@ const holder = atom({ plugin: 'test-lock', key: 'holder' } as const, null)
 const cargoBuilt = atom({ plugin: 'test-lock', key: 'cargoBuilt' } as const, false)
 
 // Most specific first: `vitest bench` is a benchmark, `hyperfine "bun run build"` too
-export const kindOf = (command: string): Kind | null =>
-  BENCHMARK.test(command) ? 'benchmark' : TEST.test(command) ? 'tests' : BUILD.test(command) ? 'build' : null
+export const kindOf = (command: string): Kind | null => {
+  const words = commandWords(command)
+
+  return BENCHMARK.test(words) || PGTAP_BENCHMARK.test(command)
+    ? 'benchmark'
+    : TEST.test(words)
+      ? 'tests'
+      : BUILD.test(words)
+        ? 'build'
+        : null
+}
 
 const RUNNING: Record<Kind, string> = { tests: 'tests', build: 'a build or typecheck', benchmark: 'a benchmark' }
 
@@ -126,7 +146,7 @@ export const register: Register = on => {
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const kind = kindOf(e.command)
 
-    if ((kind === null && !CARGO_RUN.test(e.command)) || e.command.includes(`exec ${LOCK_FD}>>`)) {
+    if ((kind === null && !CARGO_RUN.test(commandWords(e.command))) || e.command.includes(`exec ${LOCK_FD}>>`)) {
       return next(e)
     }
 
@@ -179,7 +199,7 @@ export const register: Register = on => {
 
     const result = await next({ ...e, command: wrapCommand(e.command, lock, locker) })
 
-    if (CARGO_BUILD.test(e.command) && !('deny' in result)) {
+    if (CARGO_BUILD.test(commandWords(e.command)) && !('deny' in result)) {
       await update($, cargoBuilt, () => true)
     }
 
