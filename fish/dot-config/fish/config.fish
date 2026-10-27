@@ -77,6 +77,7 @@ fish_add_path $BUN_INSTALL/bin
 fish_add_path ~/.dotnet/tools
 fish_add_path ~/go/bin
 fish_add_path ~/.local/bin
+fish_add_path /opt/local/libexec/uutils
 
 zoxide init fish | source
 fnm env --use-on-cd | source
