@@ -41,4 +41,3 @@ install lf
 install neovim nvim
 install scc
 install scrcpy
-install fnm

@@ -37,4 +37,3 @@ install scrcpy
 install zed zeditor
 
 # install rustup
-install fnm
