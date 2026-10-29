@@ -76,6 +76,7 @@ fish_add_path /opt/local/sbin
 fish_add_path $BUN_INSTALL/bin
 fish_add_path ~/.dotnet/tools
 fish_add_path ~/go/bin
+fish_add_path ~/.claude/mods/test-lock/bin
 fish_add_path ~/.local/bin
 fish_add_path /opt/local/libexec/uutils
 
