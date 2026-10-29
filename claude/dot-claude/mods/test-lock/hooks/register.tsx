@@ -34,6 +34,8 @@ const BUILD = new RegExp(
 // A server started by `cargo run` would hold the lock as long as it lives: compile under the lock, run outside it
 const CARGO_BUILD = new RegExp(START + CARGO + String.raw`(build|b)\b`)
 const CARGO_RUN = new RegExp(START + CARGO + String.raw`(run|r)\b`)
+// Takes the lock itself: wrapping it too would deadlock
+const UNDER_TEST_LOCK = new RegExp(START + String.raw`(\S*/)?test-lock\s`)
 
 // Heredoc bodies and quoted args (commit messages, search patterns) are text, not commands; `sh -c` bodies are commands
 const HEREDOC = /<<-?\s*(["']?)(\w+)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g
@@ -43,19 +45,8 @@ const QUOTED = /"(?:\\.|[^"\\])*"|'[^']*'/g
 const commandWords = (command: string) =>
   command.replace(HEREDOC, '<<$2$3').replace(SHELL_C, '; $4 ;').replace(QUOTED, '""')
 
-type Locker = { take: (fd: number) => string; probe: (lock: string, seconds?: number) => string[] }
-
-// flock is util-linux (every Linux); macOS ships only BSD lockf
-const lockerFor = (path: string): Locker =>
-  path.endsWith('/flock')
-    ? {
-        take: fd => `${path} -w ${TAKE_WAIT_S} ${fd}`,
-        probe: (lock, seconds = 0) => (seconds === 0 ? [path, '-n', lock, 'true'] : [path, '-w', String(seconds), lock, 'true']),
-      }
-    : {
-        take: fd => `${path} -s -t ${TAKE_WAIT_S} ${fd}`,
-        probe: (lock, seconds = 0) => [path, '-k', '-s', '-t', String(seconds), lock, 'true'],
-      }
+// bin/test-lock owns the lock file and how it is taken; the mod only asks it
+type Lock = { bin: string; path: string }
 
 const holder = atom({ plugin: 'test-lock', key: 'holder' } as const, null)
 const cargoBuilt = atom({ plugin: 'test-lock', key: 'cargoBuilt' } as const, false)
@@ -77,30 +68,36 @@ const RUNNING: Record<Kind, string> = { tests: 'tests', build: 'a build or typec
 
 const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
 
-export const wrapCommand = (command: string, lock: string, locker: Locker) =>
-  `exec ${LOCK_FD}>>${quote(lock)} && ${locker.take(LOCK_FD)} || { echo "test-lock: tests, a build or a benchmark already running in another session" >&2; exit ${EX_TEMPFAIL}; }; { ${command}\n} ${LOCK_FD}>&-`
+// --file pins the lock --path printed: the Bash tool's shell may set another TEST_LOCK_FILE
+export const wrapCommand = (command: string, lock: Lock, kind: Kind, label: string) =>
+  `exec ${LOCK_FD}>>${quote(lock.path)} && ${quote(lock.bin)} --fd ${LOCK_FD} --wait ${TAKE_WAIT_S} --file ${quote(lock.path)} --kind ${kind} --label ${quote(label)} --command ${quote(command)} || exit ${EX_TEMPFAIL}; { ${command}\n} ${LOCK_FD}>&-`
 
-let found: Promise<Locker | null> | undefined
+let found: Promise<Lock | null> | undefined
 
-const findLocker = ($: EngineInterface) =>
-  (found ??= $.process
-    .run(['/bin/sh', '-c', 'command -v flock || command -v lockf'])
-    .then(({ exitCode, stdout }) => (exitCode === 0 && stdout.trim() !== '' ? lockerFor(stdout.trim().split('\n')[0] ?? '') : null)))
+// Exits 69 when it finds neither flock nor lockf
+const findLock = ($: EngineInterface) => {
+  const bin = `${$.plugin.root}/bin/test-lock`
 
-const LOCK_NAME = 'pluto-test.lock'
+  return (found ??= $.process.run([bin, '--path']).then(({ exitCode, stdout }) => {
+    const path = stdout.trim()
+    return exitCode === 0 && path !== '' ? { bin, path } : null
+  }))
+}
 
-const lockPath = async ($: EngineInterface) => `${(await $.env.get('HOME')) ?? '/tmp'}/.cache/${LOCK_NAME}`
-
-const isHeld = async ($: EngineInterface, lock: string, locker: Locker, seconds = 0) =>
-  (await $.process.run(locker.probe(lock, seconds), { timeoutMs: (seconds + 5) * 1000 })).exitCode !== 0
+const isHeld = async ($: EngineInterface, lock: Lock, seconds = 0) =>
+  (
+    await $.process.run(seconds === 0 ? [lock.bin, '--probe'] : [lock.bin, '--probe', '--wait', String(seconds)], {
+      timeoutMs: (seconds + 5) * 1000,
+    })
+  ).exitCode !== 0
 
 // Resolves how many probes it waited, or null when the lock stayed held or the call was interrupted
-const waitForLock = async ($: EngineInterface, lock: string, locker: Locker, current: Holder, signal: AbortSignal) => {
+const waitForLock = async ($: EngineInterface, lock: Lock, current: Holder, signal: AbortSignal) => {
   $.ui.status(`test-lock: waiting for ${describe(current)}`)
   try {
     for (let waits = 1; waits <= MAX_WAITS; waits++) {
       if (signal.aborted) return null
-      if (!(await isHeld($, lock, locker, WAIT_S))) return waits
+      if (!(await isHeld($, lock, WAIT_S))) return waits
     }
     return null
   } finally {
@@ -108,8 +105,8 @@ const waitForLock = async ($: EngineInterface, lock: string, locker: Locker, cur
   }
 }
 
-const readHolder = async ($: EngineInterface, lock: string): Promise<Holder> => {
-  const sidecar = await $.fs.read(`${lock}.json`).catch(() => undefined)
+const readHolder = async ($: EngineInterface, lock: Lock): Promise<Holder> => {
+  const sidecar = await $.fs.read(`${lock.path}.json`).catch(() => undefined)
   try {
     // Sidecars written before builds took the lock carry no kind
     return { kind: 'tests', ...(JSON.parse(String(sidecar)) as Omit<Holder, 'kind'>) }
@@ -118,8 +115,8 @@ const readHolder = async ($: EngineInterface, lock: string): Promise<Holder> => 
   }
 }
 
-const refresh = async ($: EngineInterface, lock: string, locker: Locker) => {
-  const current = (await isHeld($, lock, locker)) ? await readHolder($, lock) : null
+const refresh = async ($: EngineInterface, lock: Lock) => {
+  const current = (await isHeld($, lock)) ? await readHolder($, lock) : null
   await update($, holder, () => current)
   return current
 }
@@ -129,38 +126,40 @@ const describe = (current: Holder) => `${current.kind} running in ${current.labe
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
-    const locker = await findLocker($)
+    const lock = await findLock($)
 
-    if (locker === null) {
+    if (lock === null) {
       $.ui.toast('test-lock: neither flock nor lockf found; test runs are not serialized')
       return started
     }
 
-    const lock = await lockPath($)
-    await refresh($, lock, locker)
-    $.clock.every(POLL_MS, () => void refresh($, lock, locker))
+    await refresh($, lock)
+    $.clock.every(POLL_MS, () => void refresh($, lock))
 
     return started
   })
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const kind = kindOf(e.command)
+    const words = commandWords(e.command)
 
-    if ((kind === null && !CARGO_RUN.test(commandWords(e.command))) || e.command.includes(`exec ${LOCK_FD}>>`)) {
+    if ((kind === null && !CARGO_RUN.test(words)) || UNDER_TEST_LOCK.test(words) || e.command.includes(`exec ${LOCK_FD}>>`)) {
       return next(e)
     }
+
+    const lock = await findLock($)
+
+    if (lock === null) {
+      return next(e)
+    }
+
+    const lockName = lock.path.split('/').at(-1) ?? lock.path
 
     // Its own flock/lockf would wait on the lock its wrapping shell holds: a deadlock
-    if (kind !== null && e.command.includes(LOCK_NAME)) {
+    if (kind !== null && e.command.includes(lockName)) {
       return {
-        deny: `test-lock already waits for the lock before running ${RUNNING[kind]}. Run the command without your own flock/lockf on ${LOCK_NAME}.`,
+        deny: `test-lock already waits for the lock before running ${RUNNING[kind]}. Run the command without your own flock/lockf on ${lockName}.`,
       }
-    }
-
-    const locker = await findLocker($)
-
-    if (locker === null) {
-      return next(e)
     }
 
     if (kind === null) {
@@ -169,13 +168,12 @@ export const register: Register = on => {
         : { deny: 'test-lock: run `cargo build` with the same flags first, so compiling waits for the lock, then `cargo run`.' }
     }
 
-    const lock = await lockPath($)
-    const current = await refresh($, lock, locker)
+    const current = await refresh($, lock)
 
     let waited = 0
 
     if (current !== null) {
-      const waits = e.command.includes(NO_WAIT) ? null : await waitForLock($, lock, locker, current, next.signal)
+      const waits = e.command.includes(NO_WAIT) ? null : await waitForLock($, lock, current, next.signal)
 
       if (waits === null) {
         return {
@@ -184,22 +182,16 @@ export const register: Register = on => {
       }
 
       waited = waits * WAIT_S
-      await refresh($, lock, locker)
+      await refresh($, lock)
     }
 
     const root = await $.session.root()
     const id = await $.session.id()
-    const entry: Holder = {
-      kind,
-      label: `${root.split('/').at(-1)} (${id.slice(0, 8)})`,
-      command: e.command,
-      startedAt: await $.clock.now(),
-    }
-    await $.fs.write(`${lock}.json`, JSON.stringify(entry))
+    const label = `${root.split('/').at(-1)} (${id.slice(0, 8)})`
 
-    const result = await next({ ...e, command: wrapCommand(e.command, lock, locker) })
+    const result = await next({ ...e, command: wrapCommand(e.command, lock, kind, label) })
 
-    if (CARGO_BUILD.test(commandWords(e.command)) && !('deny' in result)) {
+    if (CARGO_BUILD.test(words) && !('deny' in result)) {
       await update($, cargoBuilt, () => true)
     }
 

@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# Serializes tests, builds and benchmarks across terminals and Claude Code sessions.
+# The test-lock mod drives the lock through this script, so the lock file is defined here alone.
+set -u
+
+EX_USAGE=64
+EX_UNAVAILABLE=69
+EX_TEMPFAIL=75
+
+usage() {
+  cat >&2 <<'EOF'
+usage: test-lock [options] [--] command [args...]   run command under the lock
+       test-lock [--file F] --path                   print the lock file
+       test-lock [--file F] [--wait S] --probe       exit 0 when the lock is free
+       test-lock [options] --fd N                    lock open fd N for its owner
+
+options:
+  --file F      lock file (default: $TEST_LOCK_FILE, else ~/.cache/pluto-test.lock)
+  --wait S      give up after S seconds, exit 75 (default: wait forever; --probe: 0)
+  --kind K      tests, build or benchmark, shown to other sessions (default: tests)
+  --label L     who holds the lock (default: terminal (<cwd name>))
+  --command C   what runs, for --fd (default: the command)
+EOF
+  exit $EX_USAGE
+}
+
+file=${TEST_LOCK_FILE:-$HOME/.cache/pluto-test.lock}
+wait=
+kind=tests
+label="terminal (${PWD##*/})"
+command=
+mode=run
+fd=
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    --file | --wait | --kind | --label | --command | --fd)
+      [ $# -ge 2 ] || usage
+      case $1 in
+        --file) file=$2 ;;
+        --wait) wait=$2 ;;
+        --kind) kind=$2 ;;
+        --label) label=$2 ;;
+        --command) command=$2 ;;
+        --fd) mode=fd fd=$2 ;;
+      esac
+      shift 2
+      ;;
+    --path) mode=path; shift ;;
+    --probe) mode=probe; shift ;;
+    --help | -h) usage ;;
+    --) shift; break ;;
+    -*) usage ;;
+    *) break ;;
+  esac
+done
+
+# flock is util-linux (every Linux); macOS ships only BSD lockf
+flock=$(command -v flock)
+lockf=$(command -v lockf)
+
+if [ -z "$flock" ] && [ -z "$lockf" ]; then
+  echo "test-lock: neither flock nor lockf found" >&2
+  exit $EX_UNAVAILABLE
+fi
+
+# Locks open fd $1, waiting $2 seconds (empty: forever)
+lock_fd() {
+  if [ -n "$flock" ]; then
+    case $2 in
+      '') "$flock" "$1" ;;
+      0) "$flock" -n "$1" ;;
+      *) "$flock" -w "$2" "$1" ;;
+    esac
+  else
+    "$lockf" -s ${2:+-t "$2"} "$1"
+  fi
+}
+
+json() {
+  local s=$1
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\t'/\\t}
+  s=${s//$'\r'/\\r}
+  printf '"%s"' "$s"
+}
+
+write_holder() {
+  printf '{"kind":%s,"label":%s,"command":%s,"startedAt":%s000}\n' \
+    "$(json "$kind")" "$(json "$label")" "$(json "$command")" "$(date +%s)" >"$file.json"
+}
+
+describe_holder() {
+  if command -v jq >/dev/null && jq -er '"\(.kind) running in \(.label): \(.command[0:60])"' "$file.json" 2>/dev/null; then
+    return
+  fi
+  echo "another session"
+}
+
+case $mode in
+  path)
+    printf '%s\n' "$file"
+    exit 0
+    ;;
+  probe)
+    mkdir -p "${file%/*}"
+    exec 8>>"$file"
+    lock_fd 8 "${wait:-0}"
+    exit
+    ;;
+  fd)
+    lock_fd "$fd" "$wait" || {
+      echo "test-lock: $(describe_holder)" >&2
+      exit $EX_TEMPFAIL
+    }
+    write_holder
+    exit 0
+    ;;
+esac
+
+[ $# -gt 0 ] || usage
+command=${command:-$*}
+
+mkdir -p "${file%/*}"
+exec 9>>"$file"
+
+if ! lock_fd 9 0; then
+  echo "test-lock: waiting for $(describe_holder)" >&2
+  lock_fd 9 "$wait" || {
+    echo "test-lock: gave up after ${wait}s" >&2
+    exit $EX_TEMPFAIL
+  }
+fi
+
+write_holder
+"$@" 9>&-
