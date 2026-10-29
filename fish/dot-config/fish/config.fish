@@ -68,6 +68,7 @@ end
 
 set --export EDITOR nvim
 set --export BUN_INSTALL "$HOME/.bun"
+set --export ANDROID_HOME "$HOME/Library/Android/sdk"
 
 fish_add_path /usr/bin/rsync
 fish_add_path ~/.cargo/bin
@@ -79,6 +80,7 @@ fish_add_path ~/go/bin
 fish_add_path ~/.claude/mods/test-lock/bin
 fish_add_path ~/.local/bin
 fish_add_path /opt/local/libexec/uutils
+fish_add_path $ANDROID_HOME/platform-tools
 
 zoxide init fish | source
 
