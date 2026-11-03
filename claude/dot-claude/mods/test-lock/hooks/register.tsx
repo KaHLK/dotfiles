@@ -14,11 +14,28 @@ const TAKE_WAIT_S = 10
 const NO_WAIT = 'TEST_LOCK_NOWAIT=1'
 
 // Command position: after a separator, then env assignments and wrappers like `time`
-const START = String.raw`(^|[\n;&|({]|\$\()\s*(\w+=\S*\s+|(time|env|nohup|nice|timeout\s+\S+|do|then|else)\s+)*`
+const START = String.raw`(^|[\n;&|({]|\$\()\s*(\w+=\S*\s+|(time|env|nohup|nice|timeout\s+\S+|do|then|else|if|elif|while|until|!)\s+)*`
 const CARGO = String.raw`cargo\s+(\+\S+\s+)?`
+// What may precede a test tool: `uv run pytest`, `.venv/bin/pytest`
+const RUNNER = String.raw`((bunx?|npx|pnpx|vpx|bundle\s+exec|(uv|poetry|pipenv|hatch)\s+run|(pnpm|yarn)(\s+(exec|dlx))?)\s+)?(\S*/)?`
 const TEST = new RegExp(
   START +
-    String.raw`(bun\s+(run\s+)?test|bunx?\s+(jest|vitest|playwright\s+test)|npx\s+(jest|vitest|playwright\s+test)|jest|vitest|playwright\s+test|dotnet\s+test|pg_prove|make\s+(test|e2e)|\./gradlew\b[^;&|]*\b(test\w*|connected\w*Test)|${CARGO}(test|t|nextest\s+run))\b`,
+    RUNNER +
+    '(' +
+    [
+      String.raw`(bun|npm|pnpm|yarn|vp)\s+(-\S+\s+(\S+\s+)?)*(workspace\s+\S+\s+)?(run\s+)?(test|t)`,
+      String.raw`claude\s+plugin\s+test`,
+      String.raw`jest|vitest|mocha|playwright\s+test|cypress\s+run`,
+      String.raw`pytest|py\.test|tox|nox|python[\d.]*\s+-m\s+(pytest|unittest)`,
+      String.raw`(go|deno|mix|swift|dotnet|flutter|dart|sbt|rails|zig)\s+test|zig\s+build\s+test|gotestsum`,
+      String.raw`rspec|rake\s+(test|spec)|phpunit|ctest|pg_prove`,
+      String.raw`turbo\s+(run\s+)?test|nx\s+(run\s+\S*:)?test`,
+      String.raw`make\b[^;&|\n]*\s[\w-]*(test|e2e|check)[\w-]*|just\s+[\w-]*test[\w-]*`,
+      String.raw`(gradlew|gradle|mvnw|mvn)\b[^;&|\n]*\b(test\w*|verify|connected\w*Test)`,
+      String.raw`xcodebuild\b[^;&|\n]*\stest`,
+      String.raw`${CARGO}(test|t|nextest\s+run)`,
+    ].join('|') +
+    String.raw`)\b`,
 )
 // `sql/performance/` is how stack's /perf names its pgtap benchmarks
 const BENCHMARK = new RegExp(
@@ -34,16 +51,26 @@ const BUILD = new RegExp(
 // A server started by `cargo run` would hold the lock as long as it lives: compile under the lock, run outside it
 const CARGO_BUILD = new RegExp(START + CARGO + String.raw`(build|b)\b`)
 const CARGO_RUN = new RegExp(START + CARGO + String.raw`(run|r)\b`)
-// Takes the lock itself: wrapping it too would deadlock
-const UNDER_TEST_LOCK = new RegExp(START + String.raw`(\S*/)?test-lock\s`)
+// --path and --help leave the lock alone
+const TEST_LOCK_RUN = new RegExp(START + String.raw`(\S*/)?test-lock\s(?!\s*(--path|--help|-h)\b)`)
+// Touch the lock only when the command also names it
+const LOCK_TOOL = new RegExp(START + String.raw`(\S*/)?(flock|lockf|rm|rip)\s`)
+const LOCK_ENV = 'TEST_LOCK_FILE'
+const HANDS_OFF =
+  'Never touch the test lock yourself, EVER: no flock, lockf, rm, rip or test-lock on it. The test-lock mod handles it, or the user does. Run the command bare.'
 
 // Heredoc bodies and quoted args (commit messages, search patterns) are text, not commands; `sh -c` bodies are commands
 const HEREDOC = /<<-?\s*(["']?)(\w+)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g
 const SHELL_C = /\b(ba|z|fi|da)?sh\s+(-\w+\s+)*-\w*c\s+(["'])([\s\S]*?)\3/g
 const QUOTED = /"(?:\\.|[^"\\])*"|'[^']*'/g
+// A quoted path to one of these still runs it
+const QUOTED_LOCK_TOOL = /\/(test-lock|flock|lockf|rm|rip)["']$/
 
 const commandWords = (command: string) =>
-  command.replace(HEREDOC, '<<$2$3').replace(SHELL_C, '; $4 ;').replace(QUOTED, '""')
+  command
+    .replace(HEREDOC, '<<$2$3')
+    .replace(SHELL_C, '; $4 ;')
+    .replace(QUOTED, text => (QUOTED_LOCK_TOOL.test(text) ? text.slice(1, -1) : '""'))
 
 // bin/test-lock owns the lock file and how it is taken; the mod only asks it
 type Lock = { bin: string; path: string }
@@ -71,6 +98,9 @@ const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
 // --file pins the lock --path printed: the Bash tool's shell may set another TEST_LOCK_FILE
 export const wrapCommand = (command: string, lock: Lock, kind: Kind, label: string) =>
   `exec ${LOCK_FD}>>${quote(lock.path)} && ${quote(lock.bin)} --fd ${LOCK_FD} --wait ${TAKE_WAIT_S} --file ${quote(lock.path)} --kind ${kind} --label ${quote(label)} --command ${quote(command)} || exit ${EX_TEMPFAIL}; { ${command}\n} ${LOCK_FD}>&-`
+
+// Wrap to the command it wraps. Auto mode can have the model re-send a rewritten command verbatim: only an exact copy is the mod's own
+const issued = new Map<string, string>()
 
 let found: Promise<Lock | null> | undefined
 
@@ -140,10 +170,19 @@ export const register: Register = on => {
   })
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    const kind = kindOf(e.command)
-    const words = commandWords(e.command)
+    // A re-sent wrap goes the way its command did: the lock may have been taken since
+    const command = issued.get(e.command) ?? e.command
+    const kind = kindOf(command)
+    const words = commandWords(command)
 
-    if ((kind === null && !CARGO_RUN.test(words)) || UNDER_TEST_LOCK.test(words) || e.command.includes(`exec ${LOCK_FD}>>`)) {
+    if (TEST_LOCK_RUN.test(words)) {
+      return { deny: HANDS_OFF }
+    }
+
+    const isLockTool = LOCK_TOOL.test(words)
+    const isLocked = kind !== null || CARGO_RUN.test(words)
+
+    if (!isLocked && !isLockTool) {
       return next(e)
     }
 
@@ -153,13 +192,15 @@ export const register: Register = on => {
       return next(e)
     }
 
-    const lockName = lock.path.split('/').at(-1) ?? lock.path
+    const namesLock = command.includes(lock.path.split('/').at(-1) ?? lock.path)
 
-    // Its own flock/lockf would wait on the lock its wrapping shell holds: a deadlock
-    if (kind !== null && e.command.includes(lockName)) {
-      return {
-        deny: `test-lock already waits for the lock before running ${RUNNING[kind]}. Run the command without your own flock/lockf on ${lockName}.`,
-      }
+    // Under the wrap, its own flock/lockf would also wait on the lock its shell holds: a deadlock
+    if ((kind !== null && namesLock) || (isLockTool && (namesLock || command.includes(LOCK_ENV)))) {
+      return { deny: HANDS_OFF }
+    }
+
+    if (!isLocked) {
+      return next(e)
     }
 
     if (kind === null) {
@@ -173,7 +214,7 @@ export const register: Register = on => {
     let waited = 0
 
     if (current !== null) {
-      const waits = e.command.includes(NO_WAIT) ? null : await waitForLock($, lock, current, next.signal)
+      const waits = command.includes(NO_WAIT) ? null : await waitForLock($, lock, current, next.signal)
 
       if (waits === null) {
         return {
@@ -189,7 +230,11 @@ export const register: Register = on => {
     const id = await $.session.id()
     const label = `${root.split('/').at(-1)} (${id.slice(0, 8)})`
 
-    const result = await next({ ...e, command: wrapCommand(e.command, lock, kind, label) })
+    const wrapped = wrapCommand(command, lock, kind, label)
+
+    issued.set(wrapped, command)
+
+    const result = await next({ ...e, command: wrapped })
 
     if (CARGO_BUILD.test(words) && !('deny' in result)) {
       await update($, cargoBuilt, () => true)

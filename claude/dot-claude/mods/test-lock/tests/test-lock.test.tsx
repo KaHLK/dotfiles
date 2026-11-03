@@ -22,8 +22,10 @@ const quoted = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
 
 // `locked`: true held for good, false free, a number: held for that many probes, then free
 // `lock`: what `test-lock --path` prints; null when it finds neither flock nor lockf
-const world = (on: On, locked: boolean | number, held: object = HOLDER, lock: string | null = LOCK) => {
+// `refusals`: how many calls are refused after the mod's rewrite, as auto mode's classifier does
+const world = (on: On, locked: boolean | number, held: object = HOLDER, lock: string | null = LOCK, refusals = 0) => {
   const ran: string[] = []
+  const sent: string[] = []
   const probes: string[][] = []
   const isHeldNow = () => (typeof locked === 'number' ? probes.length <= locked : locked)
 
@@ -42,11 +44,17 @@ const world = (on: On, locked: boolean | number, held: object = HOLDER, lock: st
   })
   on('fs.read', () => ({ value: JSON.stringify(held) }))
   on('tool.call', { tool: 'Bash' }, ($, e) => {
+    sent.push(e.command)
+    if (refusals-- > 0) return { deny: 'refused' }
     ran.push(e.command)
     return { result: { stdout: 'ok', stderr: '', interrupted: false } }
   })
 
-  return { ran, probes }
+  const setLocked = (next: boolean | number) => {
+    locked = next
+  }
+
+  return { ran, sent, probes, setLocked }
 }
 
 test('test command runs under the lock when no other session holds it', async ($, on) => {
@@ -233,33 +241,262 @@ test('test command is denied, naming the benchmark, when a benchmark holds the l
   expect(called.deny ?? called.text).toContain('benchmark running in stack (abcd1234)')
 })
 
-test('a test command that takes the lock itself is denied, so it cannot deadlock under the wrap', async ($, on) => {
-  const { ran } = world(on, false)
+for (const command of [
+  '/opt/local/bin/flock ~/.cache/pluto-test.lock true; bun run test --silent src/map',
+  'flock ~/.cache/pluto-test.lock bun run test',
+  'flock -n ~/.cache/pluto-test.lock true',
+  'lockf -s -t 0 ~/.cache/pluto-test.lock true',
+  'if flock -n "$HOME/.cache/pluto-test.lock" true; then echo free; fi',
+  'exec 9>>~/.cache/pluto-test.lock && flock 9; git status',
+  '"/opt/local/bin/flock" ~/.cache/pluto-test.lock true',
+  'flock "$TEST_LOCK_FILE" true',
+  'bash -c "flock ~/.cache/pluto-test.lock true"',
+  'test-lock cargo test',
+  'test-lock --probe',
+  'test-lock --fd 9 --wait 10',
+  'cd crates/core && TEST_LOCK_FILE=/tmp/x.lock test-lock --kind build -- cargo build',
+  '~/.claude/mods/test-lock/bin/test-lock bun run test',
+  '"$HOME/.claude/mods/test-lock/bin/test-lock" bun run test',
+  'rm -f ~/.cache/pluto-test.lock',
+  'rip ~/.cache/pluto-test.lock',
+  '/bin/rm "$HOME/.cache/pluto-test.lock"',
+  'rm "$TEST_LOCK_FILE"',
+  'cd /tmp && rm -f ~/.cache/pluto-test.lock && bun run test',
+]) {
+  test(`command touching the lock itself is denied: ${command}`, async ($, on) => {
+    const { ran } = world(on, false)
 
-  const called = await $.tool.call({
-    tool: 'Bash',
-    command: '/opt/local/bin/flock ~/.cache/pluto-test.lock true; bun run test --silent src/map',
+    const called = await $.tool.call({ tool: 'Bash', command })
+
+    expect(ran).toHaveLength(0)
+    expect(called.deny ?? called.text).toContain('Never touch the test lock yourself')
   })
+}
 
-  expect(ran).toHaveLength(0)
-  expect(called.deny ?? called.text).toContain('test-lock already waits for the lock')
-})
-
-test('the deadlock guard follows the lock file test-lock --path prints', async ($, on) => {
+test('the guard follows the lock file test-lock --path prints', async ($, on) => {
   const { ran } = world(on, false, HOLDER, '/tmp/other.lock')
 
   const called = await $.tool.call({ tool: 'Bash', command: 'flock /tmp/other.lock true; bun run test' })
 
   expect(ran).toHaveLength(0)
-  expect(called.deny ?? called.text).toContain('other.lock')
+  expect(called.deny ?? called.text).toContain('Never touch the test lock yourself')
 })
 
 for (const command of [
-  'test-lock cargo test',
-  'cd crates/core && TEST_LOCK_FILE=/tmp/x.lock test-lock --kind build -- cargo build',
-  '~/.claude/mods/test-lock/bin/test-lock bun run test',
+  'flock /tmp/unrelated.lock git status',
+  'rm -f /tmp/unrelated.lock',
+  'rip dist',
+  'test-lock --path',
+  'test-lock  --path',
+  'test-lock --help',
+  'git commit -m "flock ~/.cache/pluto-test.lock; rm ~/.cache/pluto-test.lock; test-lock cargo test"',
+  'git rm tests/pluto-test.lock.snap',
+  'bat bin/test-lock | head',
+  'rg -n flock bin/test-lock',
+  'cat ~/.cache/pluto-test.lock.json',
 ]) {
-  test(`command that runs under test-lock itself runs unchanged while the lock is held: ${command}`, async ($, on) => {
+  test(`command that does not touch the lock runs unchanged while it is held: ${command}`, async ($, on) => {
+    const { ran } = world(on, true)
+
+    await $.tool.call({ tool: 'Bash', command })
+
+    expect(ran).toEqual([command])
+  })
+}
+
+test('rm of something else in a test command still runs under the lock', async ($, on) => {
+  const { ran } = world(on, false)
+
+  await $.tool.call({ tool: 'Bash', command: 'rm -rf dist && bun run test' })
+
+  expect(ran[0]).toContain(TAKE)
+})
+
+test('a test command setting TEST_LOCK_FILE still runs under the lock', async ($, on) => {
+  const { ran } = world(on, false)
+
+  await $.tool.call({ tool: 'Bash', command: 'TEST_LOCK_FILE=/tmp/x.lock bun run test' })
+
+  expect(ran[0]).toContain(TAKE)
+})
+
+test('the wrap this mod issued, re-sent as is, runs unchanged', async ($, on) => {
+  const { ran } = world(on, false)
+
+  await $.tool.call({ tool: 'Bash', command: 'bun run test' })
+  await $.tool.call({ tool: 'Bash', command: ran[0] as string })
+
+  expect(ran).toHaveLength(2)
+  expect(ran[1]).toBe(ran[0])
+})
+
+test('a re-sent wrap waits when another session took the lock after the refusal', async ($, on) => {
+  const { ran, sent, probes, setLocked } = world(on, false, HOLDER, LOCK, 1)
+
+  await $.tool.call({ tool: 'Bash', command: 'bun run test' })
+  setLocked(probes.length + 2)
+  const called = await $.tool.call({ tool: 'Bash', command: sent[0] as string })
+
+  expect(ran).toEqual([sent[0] as string])
+  expect(probes.filter(argv => argv.includes('--wait')).length > 0).toBe(true)
+  expect(called.context?.join('\n')).toContain('TEST_LOCK_NOWAIT=1')
+})
+
+test('a re-sent wrap is denied, naming the holder, when the lock stays held past the wait', async ($, on) => {
+  const { ran, sent, setLocked } = world(on, false, HOLDER, LOCK, 1)
+
+  await $.tool.call({ tool: 'Bash', command: 'bun run test' })
+  setLocked(true)
+  const called = await $.tool.call({ tool: 'Bash', command: sent[0] as string })
+
+  expect(ran).toHaveLength(0)
+  expect(called.deny ?? called.text).toContain('tests running in stack (abcd1234)')
+})
+
+test('a re-sent TEST_LOCK_NOWAIT=1 wrap is denied at once while the lock is held', async ($, on) => {
+  const { ran, sent, probes, setLocked } = world(on, false, HOLDER, LOCK, 1)
+
+  await $.tool.call({ tool: 'Bash', command: 'TEST_LOCK_NOWAIT=1 bun run test' })
+  setLocked(true)
+  await $.tool.call({ tool: 'Bash', command: sent[0] as string })
+
+  expect(ran).toHaveLength(0)
+  expect(probes.filter(argv => argv.includes('--wait'))).toHaveLength(0)
+})
+
+test('cargo run works after a cargo build that ran on the re-send', async ($, on) => {
+  const { ran, sent } = world(on, false, HOLDER, LOCK, 1)
+
+  await $.tool.call({ tool: 'Bash', command: 'cargo build --bin cli' })
+  await $.tool.call({ tool: 'Bash', command: sent[0] as string })
+  await $.tool.call({ tool: 'Bash', command: 'cargo run --bin cli' })
+
+  expect(ran).toEqual([sent[0] as string, 'cargo run --bin cli'])
+})
+
+test('cargo run stays denied after a refused cargo build', async ($, on) => {
+  const { ran } = world(on, false, HOLDER, LOCK, 1)
+
+  await $.tool.call({ tool: 'Bash', command: 'cargo build --bin cli' })
+  const called = await $.tool.call({ tool: 'Bash', command: 'cargo run --bin cli' })
+
+  expect(ran).toHaveLength(0)
+  expect(called.deny ?? called.text).toContain('cargo build')
+})
+
+test('an issued wrap with something appended is denied', async ($, on) => {
+  const { ran } = world(on, false)
+
+  await $.tool.call({ tool: 'Bash', command: 'bun run test' })
+  const called = await $.tool.call({ tool: 'Bash', command: `${ran[0]}; echo more` })
+
+  expect(ran).toHaveLength(1)
+  expect(called.deny ?? called.text).toContain('Never touch the test lock yourself')
+})
+
+for (const command of [
+  `exec 9>>'${LOCK}' && test-lock --fd 9 --wait 10; bun run test`,
+  `exec 9>>'${LOCK}' && '/elsewhere/bin/test-lock' --fd 9 --wait 10; git status`,
+]) {
+  test(`hand-written wrap is denied: ${command}`, async ($, on) => {
+    const { ran } = world(on, false)
+
+    const called = await $.tool.call({ tool: 'Bash', command })
+
+    expect(ran).toHaveLength(0)
+    expect(called.deny ?? called.text).toContain('Never touch the test lock yourself')
+  })
+}
+
+test('opening fd 9 does not skip the wrap', async ($, on) => {
+  const { ran } = world(on, false)
+
+  await $.tool.call({ tool: 'Bash', command: 'exec 9>>/tmp/other; bun run test' })
+
+  expect(ran[0]).toContain(TAKE)
+})
+
+for (const command of [
+  'claude plugin test .',
+  'cd mods/x && claude plugin test .',
+  'npm test',
+  'npm t',
+  'npm run test:unit',
+  'npm --prefix js test',
+  'pnpm test',
+  'pnpm -r test',
+  'pnpm --filter web run test',
+  'pnpm exec vitest run',
+  'yarn test',
+  'yarn workspace web test',
+  'vp test',
+  'npx mocha',
+  'npx cypress run',
+  './node_modules/.bin/vitest run',
+  'turbo run test',
+  'nx test web',
+  'nx run web:test',
+  'pytest -q',
+  'py.test',
+  '.venv/bin/pytest',
+  'python -m pytest',
+  'python3 -m unittest discover',
+  'uv run pytest',
+  'poetry run pytest',
+  'tox',
+  'nox',
+  'go test ./...',
+  'gotestsum',
+  'deno test',
+  'mix test',
+  'rspec',
+  'bundle exec rspec',
+  'rake test',
+  'rails test',
+  'phpunit',
+  'ctest',
+  'mvn test',
+  './mvnw -q verify',
+  'gradle test',
+  'swift test',
+  'xcodebuild -scheme App test',
+  'flutter test',
+  'dart test',
+  'zig build test',
+  'sbt test',
+  'just test',
+  'make check',
+  'make -C backend test',
+  'make db_test',
+  'if pytest; then echo ok; fi',
+]) {
+  test(`test invocation runs under the lock as tests: ${command}`, async ($, on) => {
+    const { ran } = world(on, false)
+
+    await $.tool.call({ tool: 'Bash', command })
+
+    expect(ran[0]).toContain(TAKE)
+    expect(ran[0]).toContain('--kind tests ')
+  })
+}
+
+for (const command of [
+  'claude plugin validate .',
+  'npm install',
+  'npm run lint',
+  'pnpm add -D vitest',
+  'yarn add test-utils',
+  'go vet ./...',
+  'go build ./...',
+  'make build',
+  'which pytest',
+  'cat pytest.ini',
+  'vim tox.ini',
+  'test -f package.json',
+  'python -m pip list',
+  'just lint',
+]) {
+  test(`not a test run, runs unchanged while the lock is held: ${command}`, async ($, on) => {
     const { ran } = world(on, true)
 
     await $.tool.call({ tool: 'Bash', command })
