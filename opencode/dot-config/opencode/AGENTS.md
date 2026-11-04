@@ -18,6 +18,8 @@ Temp output save in `~/.llm-output`, subdir named after repo/branch (whichever e
 
 Fix issue: failing test replicating issue MUST come first, then fix (human input or human-done). Issue fixed only when test passes. Add more tests if new context appears.
 
+`pluto` repos (`Pluto-Technology` remote): NEVER run the full test suite. Run only tests relevant to the change; full suite runs in CI once a PR exists.
+
 Tsx files: EXPORTED component ALWAYS FIRST. Multiple exports? Sort by relevance to filename (ex. `Dropdown` in `Dropdown.tsx` first).
 
 When writing something intended for human consumption, (comment, commit message, reply to prompt) use as few words as possible. Pick every word meticulously to reduce the volume to a strict minimum. Be down to the point. Less is more.
