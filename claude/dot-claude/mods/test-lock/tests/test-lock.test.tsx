@@ -394,6 +394,33 @@ test('an issued wrap with something appended is denied', async ($, on) => {
   expect(called.deny ?? called.text).toContain('Never touch the test lock yourself')
 })
 
+// The model learns the wrap from an earlier run and writes the next one itself
+test('a wrap identical to the one the mod would issue, sent before it was issued, runs unchanged', async ($, on) => {
+  const { ran } = world(on, false)
+
+  await $.tool.call({ tool: 'Bash', command: 'bun run test a' })
+  const wrap = (ran[0] as string).replaceAll('bun run test a', 'bun run test b')
+  await $.tool.call({ tool: 'Bash', command: wrap })
+
+  expect(ran).toHaveLength(2)
+  expect(ran[1]).toBe(wrap)
+})
+
+for (const [name, edit] of [
+  ['runs another command than it names', (wrap: string) => wrap.replace('{ bun run test\n}', '{ git push\n}')],
+  ['claims another session', (wrap: string) => wrap.replace('stack (abcd1234)', 'stack (ffff0000)')],
+] as const) {
+  test(`a wrap that ${name} is denied`, async ($, on) => {
+    const { ran } = world(on, false)
+
+    await $.tool.call({ tool: 'Bash', command: 'bun run test' })
+    const called = await $.tool.call({ tool: 'Bash', command: edit(ran[0] as string) })
+
+    expect(ran).toHaveLength(1)
+    expect(called.deny ?? called.text).toContain('Never touch the test lock yourself')
+  })
+}
+
 for (const command of [
   `exec 9>>'${LOCK}' && test-lock --fd 9 --wait 10; bun run test`,
   `exec 9>>'${LOCK}' && '/elsewhere/bin/test-lock' --fd 9 --wait 10; git status`,

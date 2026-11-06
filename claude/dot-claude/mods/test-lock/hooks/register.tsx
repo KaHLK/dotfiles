@@ -99,8 +99,8 @@ const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
 export const wrapCommand = (command: string, lock: Lock, kind: Kind, label: string) =>
   `exec ${LOCK_FD}>>${quote(lock.path)} && ${quote(lock.bin)} --fd ${LOCK_FD} --wait ${TAKE_WAIT_S} --file ${quote(lock.path)} --kind ${kind} --label ${quote(label)} --command ${quote(command)} || exit ${EX_TEMPFAIL}; { ${command}\n} ${LOCK_FD}>&-`
 
-// Wrap to the command it wraps. Auto mode can have the model re-send a rewritten command verbatim: only an exact copy is the mod's own
-const issued = new Map<string, string>()
+// The wrap's body, after the lock is taken
+const WRAPPED = new RegExp(String.raw`\|\| exit ${EX_TEMPFAIL}; \{ ([\s\S]*)\n\} ${LOCK_FD}>&-$`)
 
 let found: Promise<Lock | null> | undefined
 
@@ -153,6 +153,21 @@ const refresh = async ($: EngineInterface, lock: Lock) => {
 
 const describe = (current: Holder) => `${current.kind} running in ${current.label}: ${current.command.slice(0, 60)}`
 
+const labelOf = async ($: EngineInterface) => {
+  const root = await $.session.root()
+  const id = await $.session.id()
+  return `${root.split('/').at(-1)} (${id.slice(0, 8)})`
+}
+
+// Only an exact copy of the wrap this mod issues is its own: auto mode's verbatim re-send, or the model writing it ahead
+const unwrap = async ($: EngineInterface, command: string) => {
+  const inner = WRAPPED.exec(command)?.[1]
+  const kind = inner === undefined ? null : kindOf(inner)
+  if (inner === undefined || kind === null) return undefined
+  const lock = await findLock($)
+  return lock !== null && wrapCommand(inner, lock, kind, await labelOf($)) === command ? inner : undefined
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
@@ -171,7 +186,7 @@ export const register: Register = on => {
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     // A re-sent wrap goes the way its command did: the lock may have been taken since
-    const command = issued.get(e.command) ?? e.command
+    const command = (await unwrap($, e.command)) ?? e.command
     const kind = kindOf(command)
     const words = commandWords(command)
 
@@ -226,13 +241,7 @@ export const register: Register = on => {
       await refresh($, lock)
     }
 
-    const root = await $.session.root()
-    const id = await $.session.id()
-    const label = `${root.split('/').at(-1)} (${id.slice(0, 8)})`
-
-    const wrapped = wrapCommand(command, lock, kind, label)
-
-    issued.set(wrapped, command)
+    const wrapped = wrapCommand(command, lock, kind, await labelOf($))
 
     const result = await next({ ...e, command: wrapped })
 
