@@ -3,8 +3,11 @@ import type { On } from 'claude-code'
 
 const LOCK = '/Users/me/.cache/pluto-test.lock'
 const HOLDER = { kind: 'tests', label: 'stack (abcd1234)', command: 'bun run test', startedAt: 1 }
-// How the wrap takes the lock: bin/test-lock on fd 9, waiting out the probe-to-take gap
-const TAKE = "/bin/test-lock' --fd 9 --wait 10"
+// How the wrap takes the lock: bin/test-lock waiting out the probe-to-take gap, running the command in bash
+const TAKE = "--wait 10 -- bash -c '"
+const HANDS_OFF = "Don't take the test lock by hand"
+// How the mod tells the model to call test-lock itself
+const DIRECT = (kind: string) => `test-lock --kind ${kind} --label 'stack (abcd1234)' -- <command>`
 const BAND_PROPS = {
   hasSurvey: false,
   isWorking: false,
@@ -63,19 +66,10 @@ test('test command runs under the lock when no other session holds it', async ($
   await $.tool.call({ tool: 'Bash', command: 'cd js && bun run test --silent' })
 
   expect(ran).toHaveLength(1)
-  expect(ran[0]).toContain(TAKE)
-  expect(ran[0]).toContain(`exec 9>>'${LOCK}'`)
-  expect(ran[0]).toContain(`--file '${LOCK}' --kind tests`)
-  expect(ran[0]).toContain("--kind tests --label 'stack (abcd1234)' --command 'cd js && bun run test --silent'")
-  expect(ran[0]).toContain('{ cd js && bun run test --silent\n} 9>&-')
-})
-
-test('lock file comes from test-lock --path', async ($, on) => {
-  const { ran } = world(on, false, HOLDER, '/tmp/other.lock')
-
-  await $.tool.call({ tool: 'Bash', command: 'bun run test' })
-
-  expect(ran[0]).toContain("exec 9>>'/tmp/other.lock'")
+  expect(ran[0]).toMatch(/^'[^']*\/test-lock\/bin\/test-lock' --kind tests /)
+  expect(ran[0]).toContain(
+    "--kind tests --label 'stack (abcd1234)' --command 'cd js && bun run test --silent' --wait 10 -- bash -c 'cd js && bun run test --silent'",
+  )
 })
 
 test('probes run the bin/test-lock the mod ships', async ($, on) => {
@@ -194,14 +188,28 @@ test('test command waits for the lock to free, then runs under it', async ($, on
   expect(called.context?.join('\n')).toContain('TEST_LOCK_NOWAIT=1')
 })
 
-test('no wait, no note, when the lock is free', async ($, on) => {
+test('no wait, no wait note, when the lock is free', async ($, on) => {
   const { probes } = world(on, false)
 
   const called = await $.tool.call({ tool: 'Bash', command: 'bun run test' })
 
   expect(probes.filter(argv => argv.includes('--wait'))).toHaveLength(0)
-  expect(called.context).toBe(undefined)
+  expect(called.context?.join('\n')).not.toContain('TEST_LOCK_NOWAIT=1')
 })
+
+for (const [command, kind] of [
+  ['bun run test', 'tests'],
+  ['bunx tsc --noEmit', 'build'],
+  ['cargo bench', 'benchmark'],
+] as const) {
+  test(`a rewritten ${kind} run tells the model to call test-lock itself`, async ($, on) => {
+    world(on, false)
+
+    const called = await $.tool.call({ tool: 'Bash', command })
+
+    expect(called.context?.join('\n')).toContain(DIRECT(kind))
+  })
+}
 
 test('TEST_LOCK_NOWAIT=1 is denied at once while the lock is held', async ($, on) => {
   const { ran, probes } = world(on, true)
@@ -251,12 +259,11 @@ for (const command of [
   '"/opt/local/bin/flock" ~/.cache/pluto-test.lock true',
   'flock "$TEST_LOCK_FILE" true',
   'bash -c "flock ~/.cache/pluto-test.lock true"',
-  'test-lock cargo test',
   'test-lock --probe',
+  'test-lock --kind tests --probe',
   'test-lock --fd 9 --wait 10',
+  'test-lock --file /tmp/x.lock -- bun run test',
   'cd crates/core && TEST_LOCK_FILE=/tmp/x.lock test-lock --kind build -- cargo build',
-  '~/.claude/mods/test-lock/bin/test-lock bun run test',
-  '"$HOME/.claude/mods/test-lock/bin/test-lock" bun run test',
   'rm -f ~/.cache/pluto-test.lock',
   'rip ~/.cache/pluto-test.lock',
   '/bin/rm "$HOME/.cache/pluto-test.lock"',
@@ -269,9 +276,64 @@ for (const command of [
     const called = await $.tool.call({ tool: 'Bash', command })
 
     expect(ran).toHaveLength(0)
-    expect(called.deny ?? called.text).toContain('Never touch the test lock yourself')
+    expect(called.deny ?? called.text).toContain(HANDS_OFF)
   })
 }
+
+test('denying a hand-taken lock shows the test-lock command for this session', async ($, on) => {
+  world(on, false)
+
+  const called = await $.tool.call({ tool: 'Bash', command: 'flock ~/.cache/pluto-test.lock bun run test' })
+
+  expect(called.deny ?? called.text).toContain(DIRECT('tests|build|benchmark'))
+})
+
+// test-lock takes the lock itself: a rewrite would only cost an auto mode refusal
+for (const command of [
+  'test-lock cargo test',
+  'test-lock -- bun run test',
+  'cd js && test-lock --kind tests --label "stack (abcd1234)" -- bun run test --silent 2>&1 | tail -n 20',
+  'test-lock --kind build --wait 600 -- cargo build',
+  'test-lock -- bash -c "cd js && bun run test"',
+  '~/.claude/mods/test-lock/bin/test-lock bun run test',
+  '"$HOME/.claude/mods/test-lock/bin/test-lock" bun run test',
+]) {
+  test(`command run through test-lock runs unchanged: ${command}`, async ($, on) => {
+    const { ran } = world(on, false)
+
+    await $.tool.call({ tool: 'Bash', command })
+
+    expect(ran).toEqual([command])
+  })
+}
+
+test('command run through test-lock waits for the lock to free, then runs unchanged', async ($, on) => {
+  const { ran, probes } = world(on, 3)
+
+  const called = await $.tool.call({ tool: 'Bash', command: 'test-lock -- bun run test' })
+
+  expect(ran).toEqual(['test-lock -- bun run test'])
+  expect(probes.filter(argv => argv.includes('--wait'))).toHaveLength(3)
+  expect(called.context?.join('\n')).toContain('TEST_LOCK_NOWAIT=1')
+})
+
+test('command run through test-lock is denied, naming the holder, when the lock stays held past the wait', async ($, on) => {
+  const { ran } = world(on, true)
+
+  const called = await $.tool.call({ tool: 'Bash', command: 'test-lock --kind build -- cargo build' })
+
+  expect(ran).toHaveLength(0)
+  expect(called.deny ?? called.text).toContain('tests running in stack (abcd1234)')
+})
+
+test('cargo run works after a cargo build run through test-lock', async ($, on) => {
+  const { ran } = world(on, false)
+
+  await $.tool.call({ tool: 'Bash', command: 'test-lock --kind build -- cargo build --bin cli' })
+  await $.tool.call({ tool: 'Bash', command: 'cargo run --bin cli' })
+
+  expect(ran).toEqual(['test-lock --kind build -- cargo build --bin cli', 'cargo run --bin cli'])
+})
 
 test('the guard follows the lock file test-lock --path prints', async ($, on) => {
   const { ran } = world(on, false, HOLDER, '/tmp/other.lock')
@@ -279,7 +341,7 @@ test('the guard follows the lock file test-lock --path prints', async ($, on) =>
   const called = await $.tool.call({ tool: 'Bash', command: 'flock /tmp/other.lock true; bun run test' })
 
   expect(ran).toHaveLength(0)
-  expect(called.deny ?? called.text).toContain('Never touch the test lock yourself')
+  expect(called.deny ?? called.text).toContain(HANDS_OFF)
 })
 
 for (const command of [
@@ -384,16 +446,6 @@ test('cargo run stays denied after a refused cargo build', async ($, on) => {
   expect(called.deny ?? called.text).toContain('cargo build')
 })
 
-test('an issued wrap with something appended is denied', async ($, on) => {
-  const { ran } = world(on, false)
-
-  await $.tool.call({ tool: 'Bash', command: 'bun run test' })
-  const called = await $.tool.call({ tool: 'Bash', command: `${ran[0]}; echo more` })
-
-  expect(ran).toHaveLength(1)
-  expect(called.deny ?? called.text).toContain('Never touch the test lock yourself')
-})
-
 // The model learns the wrap from an earlier run and writes the next one itself
 test('a wrap identical to the one the mod would issue, sent before it was issued, runs unchanged', async ($, on) => {
   const { ran } = world(on, false)
@@ -406,21 +458,6 @@ test('a wrap identical to the one the mod would issue, sent before it was issued
   expect(ran[1]).toBe(wrap)
 })
 
-for (const [name, edit] of [
-  ['runs another command than it names', (wrap: string) => wrap.replace('{ bun run test\n}', '{ git push\n}')],
-  ['claims another session', (wrap: string) => wrap.replace('stack (abcd1234)', 'stack (ffff0000)')],
-] as const) {
-  test(`a wrap that ${name} is denied`, async ($, on) => {
-    const { ran } = world(on, false)
-
-    await $.tool.call({ tool: 'Bash', command: 'bun run test' })
-    const called = await $.tool.call({ tool: 'Bash', command: edit(ran[0] as string) })
-
-    expect(ran).toHaveLength(1)
-    expect(called.deny ?? called.text).toContain('Never touch the test lock yourself')
-  })
-}
-
 for (const command of [
   `exec 9>>'${LOCK}' && test-lock --fd 9 --wait 10; bun run test`,
   `exec 9>>'${LOCK}' && '/elsewhere/bin/test-lock' --fd 9 --wait 10; git status`,
@@ -431,7 +468,7 @@ for (const command of [
     const called = await $.tool.call({ tool: 'Bash', command })
 
     expect(ran).toHaveLength(0)
-    expect(called.deny ?? called.text).toContain('Never touch the test lock yourself')
+    expect(called.deny ?? called.text).toContain(HANDS_OFF)
   })
 }
 

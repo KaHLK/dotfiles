@@ -3,8 +3,6 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Holder, Kind } from '../types'
 
-const LOCK_FD = 9
-const EX_TEMPFAIL = 75
 const POLL_MS = 5000
 // Waits run as blocking lock probes: a $ call's time is outside the hook's 10 s budget
 const WAIT_S = 5
@@ -13,8 +11,10 @@ const MAX_WAITS = (20 * 60) / WAIT_S
 const TAKE_WAIT_S = 10
 const NO_WAIT = 'TEST_LOCK_NOWAIT=1'
 
-// Command position: after a separator, then env assignments and wrappers like `time`
-const START = String.raw`(^|[\n;&|({]|\$\()\s*(\w+=\S*\s+|(time|env|nohup|nice|timeout\s+\S+|do|then|else|if|elif|while|until|!)\s+)*`
+const TEST_LOCK = String.raw`(\S*/)?test-lock`
+const LOCK_ENV = 'TEST_LOCK_FILE'
+// Command position: after a separator, then env assignments and wrappers like `time` or `test-lock --kind build --`
+const START = String.raw`(^|[\n;&|({]|\$\()\s*(\w+=\S*\s+|(time|env|nohup|nice|timeout\s+\S+|do|then|else|if|elif|while|until|!|${TEST_LOCK}(\s+--(wait|kind|label|command)\s+\S+)*(\s+--)?)\s+)*`
 const CARGO = String.raw`cargo\s+(\+\S+\s+)?`
 // What may precede a test tool: `uv run pytest`, `.venv/bin/pytest`
 const RUNNER = String.raw`((bunx?|npx|pnpx|vpx|bundle\s+exec|(uv|poetry|pipenv|hatch)\s+run|(pnpm|yarn)(\s+(exec|dlx))?)\s+)?(\S*/)?`
@@ -51,13 +51,15 @@ const BUILD = new RegExp(
 // A server started by `cargo run` would hold the lock as long as it lives: compile under the lock, run outside it
 const CARGO_BUILD = new RegExp(START + CARGO + String.raw`(build|b)\b`)
 const CARGO_RUN = new RegExp(START + CARGO + String.raw`(run|r)\b`)
-// --path and --help leave the lock alone
-const TEST_LOCK_RUN = new RegExp(START + String.raw`(\S*/)?test-lock\s(?!\s*(--path|--help|-h)\b)`)
+// Runs a command under the lock; --path and --help leave the lock alone
+const TEST_LOCK_RUN = new RegExp(START + TEST_LOCK + String.raw`\s(?!\s*(--path|--help|-h)\b)`)
+// Drives the lock by hand, or swaps it for another file
+const TEST_LOCK_BY_HAND = new RegExp(
+  START + TEST_LOCK + String.raw`(\s+--(wait|kind|label|command)\s+\S+)*\s+--(fd|probe|file)\b`,
+)
+const LOCK_ENV_SET = new RegExp(String.raw`\b${LOCK_ENV}=\S*\s+(\w+=\S*\s+)*${TEST_LOCK}\s|\bexport\s+${LOCK_ENV}\b`)
 // Touch the lock only when the command also names it
 const LOCK_TOOL = new RegExp(START + String.raw`(\S*/)?(flock|lockf|rm|rip)\s`)
-const LOCK_ENV = 'TEST_LOCK_FILE'
-const HANDS_OFF =
-  'Never touch the test lock yourself, EVER: no flock, lockf, rm, rip or test-lock on it. The test-lock mod handles it, or the user does. Run the command bare.'
 
 // Heredoc bodies and quoted args (commit messages, search patterns) are text, not commands; `sh -c` bodies are commands
 const HEREDOC = /<<-?\s*(["']?)(\w+)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g
@@ -95,12 +97,15 @@ const RUNNING: Record<Kind, string> = { tests: 'tests', build: 'a build or typec
 
 const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
 
-// --file pins the lock --path printed: the Bash tool's shell may set another TEST_LOCK_FILE
-export const wrapCommand = (command: string, lock: Lock, kind: Kind, label: string) =>
-  `exec ${LOCK_FD}>>${quote(lock.path)} && ${quote(lock.bin)} --fd ${LOCK_FD} --wait ${TAKE_WAIT_S} --file ${quote(lock.path)} --kind ${kind} --label ${quote(label)} --command ${quote(command)} || exit ${EX_TEMPFAIL}; { ${command}\n} ${LOCK_FD}>&-`
+// A command run through test-lock is left as written, so auto mode reviews it without a rewrite
+const direct = (kind: string, label: string) => `test-lock --kind ${kind} --label ${quote(label)} -- <command>`
 
-// The wrap's body, after the lock is taken
-const WRAPPED = new RegExp(String.raw`\|\| exit ${EX_TEMPFAIL}; \{ ([\s\S]*)\n\} ${LOCK_FD}>&-$`)
+const handsOff = (label: string) =>
+  `Don't take the test lock by hand: no flock, lockf, rm or rip on it, no test-lock --fd, --probe or --file, no ${LOCK_ENV}. Run tests, builds and benchmarks through test-lock instead: ${direct('tests|build|benchmark', label)}`
+
+// A plain test-lock run, so a re-send is one too; bash -c keeps compound commands under the lock
+export const wrapCommand = (command: string, lock: Lock, kind: Kind, label: string) =>
+  `${quote(lock.bin)} --kind ${kind} --label ${quote(label)} --command ${quote(command)} --wait ${TAKE_WAIT_S} -- bash -c ${quote(command)}`
 
 let found: Promise<Lock | null> | undefined
 
@@ -159,15 +164,6 @@ const labelOf = async ($: EngineInterface) => {
   return `${root.split('/').at(-1)} (${id.slice(0, 8)})`
 }
 
-// Only an exact copy of the wrap this mod issues is its own: auto mode's verbatim re-send, or the model writing it ahead
-const unwrap = async ($: EngineInterface, command: string) => {
-  const inner = WRAPPED.exec(command)?.[1]
-  const kind = inner === undefined ? null : kindOf(inner)
-  if (inner === undefined || kind === null) return undefined
-  const lock = await findLock($)
-  return lock !== null && wrapCommand(inner, lock, kind, await labelOf($)) === command ? inner : undefined
-}
-
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
@@ -185,17 +181,18 @@ export const register: Register = on => {
   })
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    // A re-sent wrap goes the way its command did: the lock may have been taken since
-    const command = (await unwrap($, e.command)) ?? e.command
+    const { command } = e
     const kind = kindOf(command)
     const words = commandWords(command)
+    // The model's own, or a re-sent wrap: runs as written, after the same wait as a bare command
+    const isTestLockRun = TEST_LOCK_RUN.test(words)
 
-    if (TEST_LOCK_RUN.test(words)) {
-      return { deny: HANDS_OFF }
+    if (TEST_LOCK_BY_HAND.test(words) || LOCK_ENV_SET.test(words)) {
+      return { deny: handsOff(await labelOf($)) }
     }
 
     const isLockTool = LOCK_TOOL.test(words)
-    const isLocked = kind !== null || CARGO_RUN.test(words)
+    const isLocked = isTestLockRun || kind !== null || CARGO_RUN.test(words)
 
     if (!isLocked && !isLockTool) {
       return next(e)
@@ -211,19 +208,21 @@ export const register: Register = on => {
 
     // Under the wrap, its own flock/lockf would also wait on the lock its shell holds: a deadlock
     if ((kind !== null && namesLock) || (isLockTool && (namesLock || command.includes(LOCK_ENV)))) {
-      return { deny: HANDS_OFF }
+      return { deny: handsOff(await labelOf($)) }
     }
 
     if (!isLocked) {
       return next(e)
     }
 
-    if (kind === null) {
+    if (kind === null && !isTestLockRun) {
       return (await read($, cargoBuilt))
         ? next(e)
         : { deny: 'test-lock: run `cargo build` with the same flags first, so compiling waits for the lock, then `cargo run`.' }
     }
 
+    // test-lock's own default when its command is none the mod knows
+    const lockKind = kind ?? 'tests'
     const current = await refresh($, lock)
 
     let waited = 0
@@ -233,7 +232,7 @@ export const register: Register = on => {
 
       if (waits === null) {
         return {
-          deny: `test-lock: ${describe(current)}. Wait for that run to finish before running ${RUNNING[kind]}.`,
+          deny: `test-lock: ${describe(current)}. Wait for that run to finish before running ${RUNNING[lockKind]}.`,
         }
       }
 
@@ -241,22 +240,34 @@ export const register: Register = on => {
       await refresh($, lock)
     }
 
-    const wrapped = wrapCommand(command, lock, kind, await labelOf($))
+    const label = await labelOf($)
+    // Wrapping a test-lock run would deadlock on the same lock
+    const result = await next(isTestLockRun ? e : { ...e, command: wrapCommand(command, lock, lockKind, label) })
 
-    const result = await next({ ...e, command: wrapped })
-
-    if (CARGO_BUILD.test(words) && !('deny' in result)) {
-      await update($, cargoBuilt, () => true)
-    }
-
-    if (waited === 0 || 'deny' in result) {
+    if ('deny' in result) {
       return result
     }
 
-    // Read by the model alone: how to skip the wait next time
-    const note = `test-lock waited about ${Math.ceil(waited / 60)}m for another session's tests or build to finish before running this. Prefix a command with ${NO_WAIT} to be refused at once instead of waiting.`
+    if (CARGO_BUILD.test(words)) {
+      await update($, cargoBuilt, () => true)
+    }
 
-    return { ...result, context: [...(result.context ?? []), note] }
+    // Read by the model alone
+    const notes: string[] = []
+
+    if (!isTestLockRun) {
+      notes.push(
+        `test-lock rewrote this command to run it under the lock, which auto mode refuses until it is re-sent. Run it through test-lock yourself next time, after any \`cd … &&\`: ${direct(lockKind, label)}`,
+      )
+    }
+
+    if (waited > 0) {
+      notes.push(
+        `test-lock waited about ${Math.ceil(waited / 60)}m for another session's tests or build to finish before running this. Prefix a command with ${NO_WAIT} to be refused at once instead of waiting.`,
+      )
+    }
+
+    return notes.length === 0 ? result : { ...result, context: [...(result.context ?? []), ...notes] }
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
