@@ -20,6 +20,8 @@ Fix issue: failing test replicating issue MUST come first, then fix (human input
 
 `pluto` repos (`Pluto-Technology` remote): NEVER run the full test suite. Run only tests relevant to the change; full suite runs in CI once a PR exists.
 
+Tests, builds, benchmarks: run through `test-lock --kind tests|build|benchmark -- <command>`, after any `cd … &&`. Never take the lock by hand (`flock`, `lockf`, `test-lock --fd/--probe/--file`).
+
 Tsx files: EXPORTED component ALWAYS FIRST. Multiple exports? Sort by relevance to filename (ex. `Dropdown` in `Dropdown.tsx` first).
 
 When writing something intended for human consumption, (comment, commit message, reply to prompt) use as few words as possible. Pick every word meticulously to reduce the volume to a strict minimum. Be down to the point. Less is more.
