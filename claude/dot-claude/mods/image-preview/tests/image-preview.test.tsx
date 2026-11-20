@@ -109,6 +109,21 @@ test('the agent is told to point the user at /images when the pane waits', async
   expect(said(answer)).toContain('/images')
 })
 
+test('session start points agents at a folder named after the session', async ($, on) => {
+  const tools: { description: string }[] = []
+  on('session.id', () => ({ value: 'sess-1' }))
+  on('process.run', () => ({
+    value: { exitCode: 0, stdout: '/var/folders/xy/T/', stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
+  }))
+  on('tool.register', ($, e) => (tools.push(e), { value: { tool: e.name } }))
+  on('command.register', () => ({ value: { command: 'images' } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+
+  expect(tools[0]?.description).toContain('/var/folders/xy/T/claude-image-preview/sess-1/')
+})
+
 test('fit keeps the aspect ratio within the body', () => {
   expect(fit({ width: 1280, height: 720 }, 80, 40)).toEqual({ columns: 80, rows: 22 })
   expect(fit({ width: 720, height: 1280 }, 80, 40)).toEqual({ columns: 45, rows: 40 })

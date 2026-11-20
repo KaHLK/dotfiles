@@ -6,7 +6,7 @@ import type { Shown } from '../types'
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
-    await $.tool.register({ name: TOOL, description: DESCRIPTION, inputSchema: INPUT_SCHEMA })
+    await $.tool.register({ name: TOOL, description: describe(await sessionDir($)), inputSchema: INPUT_SCHEMA })
     await $.command.register({ name: 'images', description: 'Reopen the image preview pane' })
 
     return result
@@ -111,13 +111,24 @@ const PANE = 'image-preview'
 // Terminal cells are about twice as tall as wide
 const CELL_ASPECT = 2
 
-const DESCRIPTION = [
-  'Show one or more PNG images to the user in a preview pane inside this Claude Code session.',
-  'Use it whenever you capture screenshots (e.g. of a headless browser) or produce images the user should see,',
-  'instead of only describing them or printing their paths. Several images get arrows to page between them.',
-  'Each call replaces what the pane shows. Paths must be absolute and PNG; convert other formats first',
-  '(macOS: `sips -s format png in.jpg --out out.png`).',
-].join(' ')
+// Under $TMPDIR, so the OS clears it
+const BASE_NAME = 'claude-image-preview'
+
+const describe = (dir: string) =>
+  [
+    'Show one or more PNG images to the user in a preview pane inside this Claude Code session.',
+    'Use it whenever you capture screenshots (e.g. of a headless browser) or produce images the user should see,',
+    'instead of only describing them or printing their paths. Several images get arrows to page between them.',
+    'Each call replaces what the pane shows. Paths must be absolute and PNG; convert other formats first',
+    '(macOS: `sips -s format png in.jpg --out out.png`).',
+    `Save images you create under ${dir}/ (this session's folder; \`mkdir -p\` it first), not in the project.`,
+  ].join(' ')
+
+const sessionDir = async ($: EngineInterface) => {
+  const { stdout } = await $.process.run(['/bin/sh', '-c', 'printf %s "${TMPDIR:-/tmp}"'])
+
+  return `${stdout.trim().replace(/\/+$/, '')}/${BASE_NAME}/${await $.session.id()}`
+}
 
 const INPUT_SCHEMA = {
   type: 'object',
@@ -146,7 +157,7 @@ start=$1; shift
 if [ $# -eq 1 ]; then target=$1
 else
   tmp=$TMPDIR; [ -n "$tmp" ] || tmp=/tmp
-  dir=$(mktemp -d "$tmp/image-preview.XXXXXX") || exit 1
+  mkdir -p "$tmp/${BASE_NAME}" && dir=$(mktemp -d "$tmp/${BASE_NAME}/open-all.XXXXXX") || exit 1
   i=0
   for p; do
     i=$((i + 1))
